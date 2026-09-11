@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crystal Solar System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@300;500&display=swap">
+  <style>
+    /* ═══════════════════════════════════════════════════
+       BASE STYLES
+    ═══════════════════════════════════════════════════ */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: #010008;
+      width: 100vw;
+      overflow-x: hidden;
+    }
+    canvas {
+      display: block;
+      position: fixed;
+      inset: 0;
+    }
+    /* Real scrollable height — one tall invisible column.
+       The canvas + UI stay fixed; scrolling through this is
+       what drives the journey through each world.          */
+    #scrollSpacer {
+      position: relative;
+      width: 100%;
+      height: 1280vh;  /* 4 worlds × 320vh of travel each */
+      pointer-events: none;
+    }
+
+    /* ── Hint text ── */
+    .hint {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font: 300 9px/1 'Cinzel', serif;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      color: rgba(180, 140, 255, .18);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* ── Sound toggle button ── */
+    #sndBtn {
+      position: fixed;
+      top: 18px;
+      right: 20px;
+      font: 300 9px/1 'Cinzel', serif;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: rgba(180, 150, 255, .32);
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid rgba(180, 150, 255, .18);
+      padding: 6px 11px;
+      transition: color .3s, border-color .3s;
+      z-index: 20;
+    }
+    #sndBtn:hover { color: rgba(210, 185, 255, .6); border-color: rgba(210, 185, 255, .38); }
+    #sndBtn.on   { color: rgba(140, 210, 255, .6); border-color: rgba(140, 210, 255, .35); }
+
+    /* ── Intro veil (fade-in overlay) ── */
+    #veil {
+      position: fixed;
+      inset: 0;
+      background: #010008;
+      pointer-events: none;
+      z-index: 60;
+      opacity: 1;                          /* start fully opaque */
+      transition: opacity 2.5s ease-in-out;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       INFO PANEL — right side, updates per scroll stage
+    ═══════════════════════════════════════════════════ */
+    #infoPanel {
+      --accent: 180, 150, 255; /* recomputed every frame in JS as the
+                                  journey blends from one world's hue
+                                  to the next's — drives every rgba()
+                                  below that references it            */
+      position: fixed;
+      top: 50%;
+      right: 22px;
+      transform: translateY(-50%);
+      width: min(258px, 34vw);
+      padding: 18px 18px 16px;
+      background: linear-gradient(160deg, rgba(30, 14, 54, .38), rgba(8, 4, 22, .42));
+      border: 1px solid rgba(var(--accent), .18);
+      border-radius: 10px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 0 26px rgba(var(--accent), .10);
+      color: rgba(225, 220, 245, .82);
+      font-family: 'Cinzel', serif;
+      z-index: 15;
+      pointer-events: none;
+      /* opacity / blur / scale are written every rAF from JS, driven
+         directly by how "resolved" the incoming world's info is —
+         no CSS transition here, the scroll smoothing IS the easing */
+    }
+    #ipTrack {
+      height: 2px;
+      width: 100%;
+      background: rgba(255, 255, 255, .08);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    #ipTrackFill {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: rgb(var(--accent));
+    }
+    .ip-label {
+      font: 300 10px/1 'Cinzel', serif;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: rgba(var(--accent), .6);
+      margin-bottom: 10px;
+    }
+    .ip-index {
+      font: 300 10px/1 'Cinzel', serif;
+      letter-spacing: .2em;
+      color: rgba(170, 190, 255, .5);
+      margin-bottom: 10px;
+    }
+    .ip-index .ip-sep { opacity: .5; margin: 0 2px; }
+    #ipTitle {
+      font: 500 20px/1.15 'Cinzel', serif;
+      letter-spacing: .04em;
+      color: rgba(235, 225, 255, .96);
+      margin-bottom: 4px;
+    }
+    #ipSub {
+      font: 300 9.5px/1 'Cinzel', serif;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: rgba(150, 195, 255, .55);
+      margin-bottom: 12px;
+    }
+    #ipDesc {
+      font: 300 12px/1.55 system-ui, sans-serif;
+      color: rgba(220, 215, 240, .72);
+      margin-bottom: 12px;
+      letter-spacing: .01em;
+    }
+    #ipFacts {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    #ipFacts li {
+      font: 300 11px/1.4 system-ui, sans-serif;
+      color: rgba(200, 205, 230, .68);
+      padding-left: 12px;
+      position: relative;
+      /* opacity + transform written per-frame from JS, staggered
+         per line so each fact resolves a beat after the last     */
+    }
+    #ipFacts li::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 6px;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: rgba(var(--accent), .65);
+    }
+    .ip-dots {
+      display: flex;
+      gap: 7px;
+    }
+    .ip-dots .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(180, 150, 255, .22);
+      transition: background .3s, transform .3s;
+    }
+    .ip-dots .dot.active {
+      background: rgba(var(--accent), .9);
+      transform: scale(1.25);
+    }
+    @media (max-width: 640px) {
+      #infoPanel {
+        width: min(200px, 46vw);
+        padding: 13px 13px 12px;
+        right: 12px;
+      }
+      #ipTitle { font-size: 16px; }
+      #ipDesc  { font-size: 10.5px; }
+      #ipFacts li { font-size: 9.5px; }
+    }
+
+    /* ── Stage nav arrows (fallback for touch / accessibility) ── */
+    #stageNav {
+      position: fixed;
+      bottom: 44px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 14px;
+      z-index: 15;
+    }
+    #stageNav button {
+      font: 300 13px/1 'Cinzel', serif;
+      color: rgba(180, 150, 255, .45);
+      background: transparent;
+      border: 1px solid rgba(180, 150, 255, .18);
+      border-radius: 50%;
+      width: 30px; height: 30px;
+      cursor: pointer;
+      transition: color .25s, border-color .25s, opacity .25s;
+    }
+    #stageNav button:hover { color: rgba(210, 185, 255, .7); border-color: rgba(210, 185, 255, .4); }
+    #stageNav button:disabled { opacity: .25; cursor: default; }
+  </style>
+</head>
+<body>
+
+  <canvas id="c"></canvas>
+  <div class="hint">kéo để xoay · cuộn để lặn sâu qua từng thế giới</div>
+  <div id="sndBtn">♪ sound</div>
+
+  <div id="infoPanel">
+    <div id="ipTrack"><div id="ipTrackFill"></div></div>
+    <div class="ip-label">Sắp tới</div>
+    <div class="ip-index"><span id="ipCur">1</span><span class="ip-sep">/</span><span id="ipTotal">4</span></div>
+    <div id="ipTitle"></div>
+    <div id="ipSub"></div>
+    <p id="ipDesc"></p>
+    <ul id="ipFacts"></ul>
+    <div class="ip-dots">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+  </div>
+
+  <div id="stageNav">
+    <button id="navPrev" aria-label="Trước">‹</button>
+    <button id="navNext" aria-label="Sau">›</button>
+  </div>
+
+  <div id="veil"></div>
+
+  <!-- Invisible tall column — its scroll height is what drives
+       the whole journey. Canvas + UI above stay fixed on screen. -->
+  <div id="scrollSpacer" aria-hidden="true"></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       VEIL REMOVAL — runs independently of Three.js
+       Even if WebGL / Three.js fails, the black screen
+       fades away so the user at least sees an error
+  ═══════════════════════════════════════════════════ -->
+  <script>
+    (function () {
+      function fadeVeil() {
+        var v = document.getElementById('veil');
+        if (!v) return;
+        v.style.opacity = '0';
+        setTimeout(function () {
+          if (v.parentNode) v.parentNode.removeChild(v);
+        }, 2800);
+      }
+      /* 400 ms gives Three.js a moment to start the render loop
+         before the veil disappears, preventing flash of content */
+      setTimeout(fadeVeil, 400);
+    })();
+  </script>
+
+  <!-- Three.js r134 from cdnjs (allowed CDN in artifact sandbox) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+
+  <!-- ═══════════════════════════════════════════════════
+       MAIN SCENE
+  ═══════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    /* ── Safety check: Three.js must be loaded ── */
+    if (typeof THREE === 'undefined') {
+      console.error('[scene] THREE.js failed to load — cannot render scene.');
+      return;
+    }
+
+    /* ═══════════════════════════════════════════
+       RENDERER + CAMERA
+    ═══════════════════════════════════════════ */
+    const W = () => window.innerWidth;
+    const H = () => window.innerHeight;
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: document.getElementById('c'),
+      antialias: true,
+    });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(W(), H());
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.sortObjects = true;
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, W() / H(), 0.05, 120);
+    camera.position.set(0, 0, 3.3);
+    camera.lookAt(0, 0, 0);
+
+    /* ═══════════════════════════════════════════
+       SHARED GLSL — injected into all ShaderMaterials
+       NO for-loops — all shaders must be loop-free to
+       avoid WebGL ES driver incompatibilities
+    ═══════════════════════════════════════════ */
+    const COMMON = /* glsl */ `
+      /* 2-D hash: maps vec2 cell id → pseudo-random float in [0,1) */
+      float h2(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5);
+      }
+      /* 3-D hash */
+      float h3(vec3 p) {
+        return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5);
+      }
+      /* Smooth noise (2-D) */
+      float n2(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(h2(i),             h2(i + vec2(1.0, 0.0)), f.x),
+          mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x),
+          f.y
+        );
+      }
+      /* Fractional Brownian Motion — 3 octaves */
+      float fbm(vec2 p) {
+        return 0.5 * n2(p) + 0.25 * n2(p * 2.0) + 0.125 * n2(p * 4.0);
+      }
+      float fbm3(vec3 p) {
+        return 0.5 * n2(p.xy) + 0.25 * n2(p.yz * 2.0) + 0.125 * n2(p.xz * 4.0);
+      }
+      /* Multi-spike starburst highlight for crystal surfaces */
+      float starburst(vec3 N, vec3 V, vec3 L, float sh) {
+        vec3 H    = normalize(L + V);
+        float core = pow(max(dot(N, H), 0.0), sh);
+        vec3 R    = normalize(cross(V, vec3(0.0, 1.0, 0.001)));
+        vec3 U    = normalize(cross(R, V));
+        vec3 refl = reflect(-V, N);
+        float rr  = dot(refl, R);
+        float ru  = dot(refl, U);
+        float ld  = max(0.0, dot(refl, L));
+        float spk =
+          exp(-rr*rr*150.0) * exp(-ru*ru*2800.0) +
+          exp(-ru*ru*150.0) * exp(-rr*rr*2800.0) +
+          exp(-(rr+ru)*(rr+ru)*220.0) * exp(-(rr-ru)*(rr-ru)*2800.0) +
+          exp(-(rr-ru)*(rr-ru)*220.0) * exp(-(rr+ru)*(rr+ru)*2800.0);
+        return core + spk * 0.5 * ld;
+      }
+    `;
+
+    /* ═══════════════════════════════════════════
+       BACKGROUND — fullscreen quad via clip-space trick
+       PlaneGeometry(2,2) → vertices at exactly ±1 in
+       clip space → covers whole viewport, UVs = [0,1]
+    ═══════════════════════════════════════════ */
+    const bgMat = new THREE.ShaderMaterial({
+      depthWrite: false,
+      uniforms: { uTime: { value: 0 }, uWorldT: { value: 0 } },
+
+      /* Clip-space full-screen quad — bypasses projection entirely */
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          /* position.xy are in [-1,1] for PlaneGeometry(2,2)
+             → directly usable as clip-space coords         */
+          gl_Position = vec4(position.xy, 0.999, 1.0);
+        }
+      `,
+
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform float uTime;
+        uniform float uWorldT;
+        ${COMMON}
+
+        void main() {
+          /* uv centered: (-0.5,0.5) × (-0.5,0.5)            */
+          vec2 uv = vUv - 0.5;
+          float t = uTime * 0.0012;
+
+          /* ── Base deep-space gradient ── */
+          vec3 col = mix(
+            vec3(0.030, 0.010, 0.115),
+            vec3(0.008, 0.003, 0.045),
+            length(uv) * 1.8
+          );
+
+          /* ── Nebula clouds (3 overlapping fbm layers) ── */
+          float nc1 = fbm(uv * 2.1 + vec2(t, 0.0));
+          float nc2 = fbm(uv * 3.7 + nc1 * 0.4 + vec2(0.1, t * 1.1));
+          float nc3 = fbm(uv * 6.2 + nc2 * 0.26 - vec2(t * 0.9, t * 1.3));
+
+          col += vec3(0.42, 0.05, 0.72) * smoothstep(0.30, 0.82, nc1)
+                 * smoothstep(0.52, 0.0, length(uv + vec2(-0.08, 0.07))) * 0.28;
+          col += vec3(0.04, 0.52, 0.82) * smoothstep(0.36, 0.80, nc2)
+                 * smoothstep(0.48, 0.0, length(uv + vec2(0.20, -0.14))) * 0.20;
+          col += vec3(0.06, 0.22, 0.88) * smoothstep(0.44, 0.82, nc3) * 0.11;
+          col += vec3(0.80, 0.06, 0.58) * smoothstep(0.60, 0.96, nc1 * nc2) * 0.10;
+          col += vec3(0.70, 0.36, 0.06) * smoothstep(0.30, 0.0, length(uv)) * 0.15;
+
+          /* ── Milky Way diagonal band ── */
+          float mwD    = uv.x * 0.72 + uv.y * 0.54;
+          float mwFall = smoothstep(0.34, 0.0, abs(mwD));
+          float mwN1   = fbm(uv * 5.4  + vec2(t * 0.28, 0.0))
+                       * fbm(uv * 10.2 + vec2(-0.22, t * 0.40));
+          float mwN2   = fbm((uv + mwN1 * 0.10) * 6.8 + vec2(t * 0.16, t * 0.23));
+          float mwBand = mwFall * (mwN1 * 0.74 + mwN2 * 0.26);
+          col += vec3(0.38, 0.42, 0.74) * mwBand * 0.92;
+          col += vec3(0.58, 0.54, 0.94) * smoothstep(0.14, 0.0, abs(mwD)) * mwN1 * 0.68;
+          col += vec3(0.11, 0.09, 0.32) * mwFall * 0.28;
+          col += vec3(0.70, 0.66, 0.98)
+                 * smoothstep(0.07, 0.0, abs(mwD))
+                 * smoothstep(0.32, 0.54, mwN2) * 0.52;
+
+          /* ── Scale-A stars: fine grid, ~28 000 cells ──
+             Using step() instead of if() — avoids dynamic
+             branching on strict WebGL ES drivers          */
+          vec2 gA = vUv * vec2(212.0, 136.0);
+          vec2 cA = floor(gA);
+          vec2 fA = fract(gA);
+          float rA1 = h2(cA);
+          float rA2 = h2(cA + vec2(41.2, 83.7));
+          float rA3 = h2(cA + vec2(22.9, 61.4));
+          float rA4 = h2(cA + vec2(93.5, 37.2));
+          float rA5 = h2(cA + vec2(57.8, 15.1));
+          float rA6 = h2(cA + vec2(19.3, 78.6));
+          float visA = step(0.50, rA1);          /* 1 if star cell, 0 otherwise */
+          float dA   = length(fA - vec2(rA2, rA3));
+          float szA  = 0.0020 + rA4 * 0.0095;
+          float blA  = 0.48 + 0.52 * sin(uTime * (0.20 + rA6 * 1.65) + rA1 * 22.5);
+          float mbA  = 1.0 + mwBand * 3.0;
+          float bA   = smoothstep(szA * 2.0, 0.0, dA) * blA * (0.08 + rA4 * 0.85) * mbA * visA;
+          vec3 scA = rA5 < 0.20 ? mix(vec3(0.42, 0.58, 1.0), vec3(0.76, 0.88, 1.0), rA4) :
+                     rA5 < 0.62 ? mix(vec3(0.86, 0.91, 1.0), vec3(1.0,  1.0,  0.94), rA4) :
+                     rA5 < 0.82 ? mix(vec3(1.0,  0.92, 0.73), vec3(1.0, 0.84, 0.56), rA4) :
+                                  vec3(1.0, 0.66, 0.42);
+          col += scA * bA;
+          /* Cross-flare on brighter A-stars */
+          float flareA = step(0.80, rA4);
+          col += scA * (
+            exp(-abs(fA.x - rA2) * 230.0) * exp(-dA * dA * 360.0) +
+            exp(-abs(fA.y - rA3) * 230.0) * exp(-dA * dA * 360.0)
+          ) * bA * 2.1 * flareA;
+
+          /* ── Scale-B stars: medium grid, ~9 000 cells ── */
+          vec2 gB = vUv * vec2(91.0, 58.0);
+          vec2 cB = floor(gB);
+          vec2 fB = fract(gB);
+          float rB1 = h2(cB + vec2(5.1,  8.7));
+          float rB2 = h2(cB + vec2(14.5, 71.3));
+          float rB3 = h2(cB + vec2(62.1, 29.8));
+          float rB4 = h2(cB + vec2(43.8, 57.2));
+          float rB5 = h2(cB + vec2(87.3, 12.6));  /* unused but keeps hash chain */
+          float rB6 = h2(cB + vec2(33.7, 91.4));
+          float visB = step(0.68, rB1);
+          float dB   = length(fB - vec2(rB2, rB3));
+          float szB  = 0.004 + rB4 * 0.015;
+          float blB  = 0.55 + 0.45 * sin(uTime * (0.28 + rB6 * 1.4) + rB1 * 18.0);
+          float mbB  = 1.0 + mwBand * 2.2;
+          float bB   = smoothstep(szB * 2.0, 0.0, dB) * blB * (0.14 + rB4 * 0.72) * mbB * visB;
+          vec3 scB = mix(vec3(0.88, 0.93, 1.0), vec3(1.0, 0.96, 0.88), rB4);
+          col += scB * bB;
+          col += scB * (
+            exp(-abs(fB.x - rB2) * 150.0) * exp(-dB * dB * 210.0) +
+            exp(-abs(fB.y - rB3) * 150.0) * exp(-dB * dB * 210.0)
+          ) * bB * 3.2;
+
+          /* ── Scale-C stars: coarse grid, ~1 400 cells (brightest) ── */
+          vec2 gC = vUv * vec2(35.0, 22.0);
+          vec2 cC = floor(gC);
+          vec2 fC = fract(gC);
+          float rC1 = h2(cC + vec2(11.3, 55.8));
+          float rC2 = h2(cC + vec2(77.4, 18.2));
+          float rC3 = h2(cC + vec2(28.6, 84.5));
+          float rC4 = h2(cC + vec2(63.1, 42.9));
+          float rC5 = h2(cC + vec2(9.8,  67.3));
+          float visC = step(0.80, rC1);
+          float dC   = length(fC - vec2(rC2, rC3));
+          float szC  = 0.008 + rC4 * 0.022;
+          float blC  = 0.60 + 0.40 * sin(uTime * (0.35 + rC5 * 1.2) + rC1 * 14.0);
+          float bC   = smoothstep(szC * 2.0, 0.0, dC) * blC
+                       * (0.25 + rC4 * 0.75) * (1.0 + mwBand * 1.8) * visC;
+          vec3 scC = mix(vec3(1.0, 0.95, 0.90), vec3(0.80, 0.90, 1.0), rC4);
+          col += scC * bC;
+          col += scC * (
+            exp(-abs(fC.x - rC2) * 80.0) * exp(-dC * dC * 120.0) +
+            exp(-abs(fC.y - rC3) * 80.0) * exp(-dC * dC * 120.0)
+          ) * bC * 4.5;
+
+          /* ── 6 hardcoded accent stars with cross flares ──
+             (replaces the for-loop from earlier versions)    */
+          vec2 fa = vec2( 0.22,  0.34);
+          vec2 fb = vec2(-0.31,  0.18);
+          vec2 fc = vec2( 0.40, -0.23);
+          vec2 fd = vec2(-0.17, -0.41);
+          vec2 fe = vec2( 0.11,  0.45);
+          vec2 ff = vec2(-0.44, -0.07);
+          float ba = 0.55 + 0.45 * sin(uTime * 0.42 + 0.8);
+          float bb = 0.55 + 0.45 * sin(uTime * 0.58 + 2.3);
+          float bc = 0.55 + 0.45 * sin(uTime * 0.35 + 4.1);
+          float bd = 0.55 + 0.45 * sin(uTime * 0.65 + 1.5);
+          float be = 0.55 + 0.45 * sin(uTime * 0.48 + 3.7);
+          float bf = 0.55 + 0.45 * sin(uTime * 0.52 + 5.2);
+          col += vec3(0.90, 0.94, 1.0) * smoothstep(0.007, 0.0, length(uv - fa)) * ba * 2.2;
+          col += vec3(0.86, 0.90, 1.0) * smoothstep(0.005, 0.0, length(uv - fb)) * bb * 1.9;
+          col += vec3(0.95, 0.92, 1.0) * smoothstep(0.008, 0.0, length(uv - fc)) * bc * 2.4;
+          col += vec3(0.90, 0.88, 1.0) * smoothstep(0.005, 0.0, length(uv - fd)) * bd * 1.8;
+          col += vec3(0.88, 0.93, 1.0) * smoothstep(0.006, 0.0, length(uv - fe)) * be * 2.0;
+          col += vec3(0.96, 0.95, 1.0) * smoothstep(0.009, 0.0, length(uv - ff)) * bf * 2.6;
+          /* Cross flares on 3 of the accents */
+          col += vec3(0.90, 0.94, 1.0) * (
+            exp(-(uv.x-fa.x)*(uv.x-fa.x)*1800.0) * exp(-(uv.y-fa.y)*(uv.y-fa.y)*6200.0) +
+            exp(-(uv.y-fa.y)*(uv.y-fa.y)*1800.0) * exp(-(uv.x-fa.x)*(uv.x-fa.x)*6200.0)
+          ) * ba * 0.55;
+          col += vec3(0.95, 0.92, 1.0) * (
+            exp(-(uv.x-fc.x)*(uv.x-fc.x)*1800.0) * exp(-(uv.y-fc.y)*(uv.y-fc.y)*6200.0) +
+            exp(-(uv.y-fc.y)*(uv.y-fc.y)*1800.0) * exp(-(uv.x-fc.x)*(uv.x-fc.x)*6200.0)
+          ) * bc * 0.60;
+          col += vec3(0.96, 0.95, 1.0) * (
+            exp(-(uv.x-ff.x)*(uv.x-ff.x)*1800.0) * exp(-(uv.y-ff.y)*(uv.y-ff.y)*6200.0) +
+            exp(-(uv.y-ff.y)*(uv.y-ff.y)*1800.0) * exp(-(uv.x-ff.x)*(uv.x-ff.x)*6200.0)
+          ) * bf * 0.70;
+
+          /* ── World tint: each of the 4 worlds washes the whole
+             nebula in its own hue; uWorldT (0..3, wraps) blends
+             between whichever two are nearest — gives every world
+             its own atmosphere without touching the star-fields ── */
+          float wt = uWorldT;
+          float w0 = clamp(1.0 - abs(wt - 0.0), 0.0, 1.0) + clamp(1.0 - abs(wt - 4.0), 0.0, 1.0);
+          float w1 = clamp(1.0 - abs(wt - 1.0), 0.0, 1.0);
+          float w2 = clamp(1.0 - abs(wt - 2.0), 0.0, 1.0);
+          float w3 = clamp(1.0 - abs(wt - 3.0), 0.0, 1.0);
+          vec3 worldTint = vec3(0.12, 0.06, 0.24) * w0   /* star   — violet   */
+                         + vec3(0.05, 0.07, 0.13) * w1   /* moon   — slate    */
+                         + vec3(0.22, 0.10, 0.02) * w2   /* sun    — ember    */
+                         + vec3(0.02, 0.11, 0.14) * w3;  /* earth  — teal     */
+          col += worldTint * 0.6;
+
+          /* ── Vignette ── */
+          col *= smoothstep(1.0, 0.26, length(uv));
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+    /* Background mesh — renderOrder -10 so it renders FIRST,
+       before any 3-D particles or objects                    */
+    const bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
+    bgMesh.renderOrder = -10;
+    scene.add(bgMesh);
+
+    /* ═══════════════════════════════════════════
+       COSMIC GROUP (slowly auto-rotates)
+       Contains: 3-D star cloud, Milky Way disc,
+                 cosmic dust, asteroids, meteors
+    ═══════════════════════════════════════════ */
+    const cosmicGroup = new THREE.Group();
+    scene.add(cosmicGroup);
+
+    /* ── 3-D Star Cloud (5 000 points, spherical shell) ── */
+    const STARS3D = 5000;
+    const s3P = new Float32Array(STARS3D * 3);
+    const s3C = new Float32Array(STARS3D * 3);
+    for (let i = 0; i < STARS3D; i++) {
+      const r  = 6 + Math.pow(Math.random(), 0.38) * 16;
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      s3P[i*3]   = r * Math.sin(ph) * Math.cos(th);
+      s3P[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+      s3P[i*3+2] = r * Math.cos(ph);
+      const t2 = Math.random();
+      const b  = 0.04 + Math.random() * 0.28;
+      let rc, gc, bc;
+      if      (t2 < 0.20) { rc = (0.40 + Math.random() * 0.3)  * b; gc = (0.60 + Math.random() * 0.2)  * b; bc = b; }
+      else if (t2 < 0.70) { rc = (0.87 + Math.random() * 0.13) * b; gc = (0.90 + Math.random() * 0.10) * b; bc = (0.93 + Math.random() * 0.07) * b; }
+      else if (t2 < 0.88) { rc = b; gc = (0.85 + Math.random() * 0.12) * b; bc = (0.55 + Math.random() * 0.2) * b; }
+      else                { rc = b; gc = (0.50 + Math.random() * 0.22) * b; bc = (0.32 + Math.random() * 0.2) * b; }
+      s3C[i*3] = rc; s3C[i*3+1] = gc; s3C[i*3+2] = bc;
+    }
+    const s3Geo = new THREE.BufferGeometry();
+    s3Geo.setAttribute('position', new THREE.BufferAttribute(s3P, 3));
+    s3Geo.setAttribute('color',    new THREE.BufferAttribute(s3C, 3));
+    const starCloud = new THREE.Points(s3Geo, new THREE.PointsMaterial({
+      vertexColors:   true,
+      size:           0.030,
+      transparent:    true,
+      opacity:        1,
+      depthWrite:     false,
+      blending:       THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    }));
+    starCloud.renderOrder = -4;
+    cosmicGroup.add(starCloud);
+
+    /* ── Milky Way Disc (7 000 points, tilted flat disc) ── */
+    const MW = 7000;
+    const mwP = new Float32Array(MW * 3);
+    const mwC = new Float32Array(MW * 3);
+    for (let i = 0; i < MW; i++) {
+      const r     = 3 + Math.pow(Math.random(), 0.32) * 15;
+      const theta = Math.random() * Math.PI * 2;
+      const height = (Math.random() - 0.5) * 0.28 / (1 + r * 0.07);
+      mwP[i*3]   = r * Math.cos(theta);
+      mwP[i*3+1] = height;
+      mwP[i*3+2] = r * Math.sin(theta);
+      const density = Math.max(0, 1 - (r - 3) / 15);
+      const bright  = (0.04 + Math.random() * 0.32) * density;
+      const ct = Math.random();
+      let rc, gc, bc;
+      if      (ct < 0.28) { rc = (0.38 + Math.random() * 0.28) * bright; gc = (0.58 + Math.random() * 0.24) * bright; bc = bright; }
+      else if (ct < 0.72) { rc = (0.84 + Math.random() * 0.16) * bright; gc = (0.88 + Math.random() * 0.12) * bright; bc = bright; }
+      else if (ct < 0.88) { rc = bright; gc = (0.87 + Math.random() * 0.13) * bright; bc = (0.64 + Math.random() * 0.22) * bright; }
+      else                { rc = bright; gc = (0.68 + Math.random() * 0.22) * bright; bc = (0.42 + Math.random() * 0.2)  * bright; }
+      mwC[i*3] = rc; mwC[i*3+1] = gc; mwC[i*3+2] = bc;
+    }
+    const mwGeo = new THREE.BufferGeometry();
+    mwGeo.setAttribute('position', new THREE.BufferAttribute(mwP, 3));
+    mwGeo.setAttribute('color',    new THREE.BufferAttribute(mwC, 3));
+    const milkyWayGrp = new THREE.Group();
+    milkyWayGrp.rotation.x = Math.PI / 3.0;   /* ~60° tilt */
+    milkyWayGrp.rotation.z = 0.52;
+    cosmicGroup.add(milkyWayGrp);
+    const mwPoints = new THREE.Points(mwGeo, new THREE.PointsMaterial({
+      vertexColors:   true,
+      size:           0.025,
+      transparent:    true,
+      opacity:        1,
+      depthWrite:     false,
+      blending:       THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    }));
+    mwPoints.renderOrder = -3;
+    milkyWayGrp.add(mwPoints);
+
+    /* ── Cosmic Dust (500 colorful particles) ── */
+    const DUST = 500;
+    const dPos = new Float32Array(DUST * 3);
+    const dCol = new Float32Array(DUST * 3);
+    const dPal = [
+      [0.55, 0.12, 0.95], [0.08, 0.52, 0.95],
+      [0.00, 0.88, 0.78], [0.92, 0.12, 0.62],
+      [1.00, 0.72, 0.18], [0.32, 0.72, 1.00],
+    ];
+    for (let i = 0; i < DUST; i++) {
+      const r  = 3 + Math.random() * 9;
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      dPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+      dPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+      dPos[i*3+2] = r * Math.cos(ph) - 5;
+      const c = dPal[Math.floor(Math.random() * dPal.length)];
+      const b = 0.06 + Math.random() * 0.22;
+      dCol[i*3] = c[0]*b; dCol[i*3+1] = c[1]*b; dCol[i*3+2] = c[2]*b;
+    }
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
+    dustGeo.setAttribute('color',    new THREE.BufferAttribute(dCol, 3));
+    const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+      vertexColors:   true,
+      size:           0.04,
+      transparent:    true,
+      opacity:        1,
+      depthWrite:     false,
+      blending:       THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    }));
+    dustPoints.renderOrder = -3;
+    cosmicGroup.add(dustPoints);
+
+    /* ═══════════════════════════════════════════
+       ASTEROIDS (orbiting outside the sphere)
+    ═══════════════════════════════════════════ */
+    const asteroidVS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      void main() {
+        vN  = normalize(normalMatrix * normal);
+        vP  = position;
+        vWP = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    const asteroidFS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      ${COMMON}
+      void main() {
+        vec3 N  = normalize(vN);
+        vec3 V  = normalize(cameraPosition - vWP);
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+        float rock = fbm3(vP * 5.0) + fbm3(vP * 11.0) * 0.5 + fbm3(vP * 22.0) * 0.25;
+        rock = rock * 0.5 + 0.5;
+        vec3 col = mix(vec3(0.10, 0.08, 0.07), vec3(0.22, 0.18, 0.14), clamp(rock, 0.0, 1.0));
+        col += step(0.76, rock) * 0.10;
+        vec3 L = normalize(vec3(0.8, 1.4, 2.0));
+        col += pow(max(dot(N, normalize(L + V)), 0.0), 28.0) * 0.22;
+        col += mix(vec3(0.40, 0.07, 0.72), vec3(0.06, 0.38, 0.85), fbm3(vP * 1.5)) * fr * 0.58;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    /* [orbitRadius, tiltX, tiltZ, speed, startAngle, size] */
+    const aOrbits = [
+      [1.55,  0.85,  0.30, 0.016, 0.5,  0.092],
+      [2.08, -0.48,  0.72, 0.011, 2.2,  0.120],
+      [2.62,  0.22, -0.58, 0.0075,3.9,  0.105],
+      [1.82,  1.18,  0.15, 0.014, 1.4,  0.072],
+      [3.10, -0.28,  0.84, 0.006, 3.6,  0.140],
+      [1.68,  0.62, -0.42, 0.019, 0.9,  0.082],
+      [2.35, -0.88,  0.52, 0.009, 2.8,  0.115],
+      [2.80,  0.38,  1.05, 0.008, 5.0,  0.095],
+    ];
+    const asteroidPivots = [];
+    aOrbits.forEach(([orbitR, tX, tZ, spd, ang, sz]) => {
+      const mat = new THREE.ShaderMaterial({
+        side: THREE.FrontSide,
+        uniforms: {},
+        vertexShader:   asteroidVS,
+        fragmentShader: asteroidFS,
+      });
+      const geo = new THREE.SphereGeometry(sz, 7, 7);
+      /* Distort vertices to make lumpy rock shapes */
+      const pos = geo.attributes.position;
+      for (let j = 0; j < pos.count; j++) {
+        const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
+        const r = Math.sqrt(x*x + y*y + z*z);
+        const d = 1 + (Math.random() - 0.5) * 0.72;
+        pos.setXYZ(j, x/r*r*d, y/r*r*d, z/r*r*d);
+      }
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+      const mesh  = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 8;
+      mesh.position.x  = orbitR;
+      mesh.userData     = { rx: 0.003 + Math.random() * 0.006, rz: 0.002 + Math.random() * 0.005 };
+      const pivot = new THREE.Group();
+      pivot.rotation.x = tX;
+      pivot.rotation.z = tZ;
+      pivot.rotation.y = ang;
+      pivot.add(mesh);
+      cosmicGroup.add(pivot);
+      asteroidPivots.push({ pivot, spd, mesh });
+    });
+
+    /* ═══════════════════════════════════════════
+       HERO STAGES — each world floats free in open
+       space (no shell/frame around it): Star → Moon →
+       Sun → Earth. As you scroll into one it grows to
+       fill the screen, then recedes as the next arrives.
+    ═══════════════════════════════════════════ */
+    const heroRoot = new THREE.Group();
+    heroRoot.rotation.x = -0.42;
+    heroRoot.rotation.z =  0.18;
+    scene.add(heroRoot);
+
+    /* Shared vertex shaders */
+    const heroVS_plain = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      void main() {
+        vN  = normalize(normalMatrix * normal);
+        vP  = position;
+        vWP = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    const heroVS_ripple = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime;
+      ${COMMON}
+      void main() {
+        vN  = normalize(normalMatrix * normal);
+        vP  = position;
+        vWP = (modelMatrix * vec4(position, 1.0)).xyz;
+        float n = fbm3(position * 4.0 + uTime * 0.15) * 0.02;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position + normal * n, 1.0);
+      }
+    `;
+
+    function heroMaterial(vs, fs, blending) {
+      return new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: blending,
+        uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
+        vertexShader: vs,
+        fragmentShader: fs,
+      });
+    }
+
+    /* ── Stage 1 · Ngôi Sao (generic star) ──
+       3-octave convective granulation + limb-darkened photosphere
+       (bright center, cooler edge) with the corona/spikes blooming
+       back up right at the rim — the classic stellar-disk look    */
+    const starMat = heroMaterial(heroVS_ripple, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 N  = normalize(vN);
+        vec3 V  = normalize(cameraPosition - vWP);
+        float NdotV = max(dot(N, V), 0.0);
+        float fr = pow(1.0 - NdotV, 1.8);
+        vec3 L1 = normalize(vec3(sin(uTime * 0.5) * 2.0, cos(uTime * 0.4) * 1.6, 2.0));
+        vec3 L2 = normalize(vec3(cos(uTime * 0.35) * 1.8, 0.8, sin(uTime * 0.3) * 2.0));
+        float sp = starburst(N, V, L1, 600.0) * 2.0 + starburst(N, V, L2, 700.0) * 1.4;
+
+        /* 3-octave convective granulation, slowly churning */
+        float g1 = fbm3(vP * 9.0  + uTime * 0.05);
+        float g2 = fbm3(vP * 21.0 - uTime * 0.09) * 0.5;
+        float g3 = fbm3(vP * 44.0 + uTime * 0.14) * 0.25;
+        float gran = (g1 + g2 + g3) * 0.42 + 0.72;
+
+        /* Limb darkening: photosphere dims toward the edge, then the
+           corona (fr term below) blooms back up right at the rim */
+        float limb = mix(0.62, 1.25, pow(NdotV, 0.55));
+        vec3 hot  = vec3(0.72, 0.86, 1.0);
+        vec3 cool = vec3(0.30, 0.48, 0.82);
+        vec3 core = mix(cool, hot, clamp(gran, 0.0, 1.0)) * 1.85 * limb;
+
+        vec3 col  = core + vec3(0.85, 0.92, 1.0) * fr * 1.5 + vec3(1.0, 1.0, 0.95) * sp;
+        gl_FragColor = vec4(col, clamp((0.55 + fr * 0.5 + sp * 0.4) * uFade, 0.0, 1.0));
+      }
+    `, THREE.AdditiveBlending);
+    const starGroup = new THREE.Group();
+    starGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 96, 96), starMat));
+
+    /* ── Stage 2 · Mặt Trăng (Moon) ──
+       Large dark maria basins under finer two-scale cratering, tiny
+       hashed rim-glints standing in for real bump-mapped highlights */
+    const moonMat = heroMaterial(heroVS_plain, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 V = normalize(cameraPosition - vWP);
+        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+        float lambert = max(dot(N, L), 0.0);
+
+        /* Large low-frequency dark "seas" (maria) under highlands */
+        float maria = smoothstep(0.36, 0.58, fbm3(vP * 1.7 + vec3(2.0, 0.5, 0.0)));
+        vec3 highlandCol = vec3(0.58, 0.56, 0.60);
+        vec3 mariaCol    = vec3(0.28, 0.27, 0.30);
+        vec3 base = mix(highlandCol, mariaCol, maria);
+
+        /* Two crater scales layered on top */
+        float craterN = fbm3(vP * 7.0) + fbm3(vP * 15.0) * 0.5 + fbm3(vP * 30.0) * 0.22;
+        base *= 0.60 + 0.40 * smoothstep(0.30, 0.85, craterN);
+
+        /* Tiny hashed glints standing in for crater-rim highlights */
+        vec3 cell = floor(vP * 26.0);
+        float glint = step(0.965, h3(cell)) * pow(max(0.0, lambert), 0.4);
+        base += glint * 0.35;
+
+        vec3 lit = base * (0.12 + lambert * 1.15);
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+        lit += vec3(0.55, 0.60, 0.75) * fr * 0.14;
+        lit += vec3(0.10, 0.14, 0.22) * (1.0 - lambert) * 0.10; /* faint earthshine */
+        gl_FragColor = vec4(lit, uFade);
+      }
+    `, THREE.NormalBlending);
+    const moonGroup = new THREE.Group();
+    moonGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.46, 96, 96), moonMat));
+
+    /* ── Stage 3 · Mặt Trời (Sun) ──
+       Actual plasma texture (was flat before): granulation cells,
+       darker sunspot clusters, and bright limb faculae             */
+    const sunCoreMat = heroMaterial(heroVS_plain, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 V  = normalize(cameraPosition - vWP);
+        float NdotV = max(dot(vN, V), 0.0);
+        float fr = pow(1.0 - NdotV, 1.5);
+        float p  = 0.92 + 0.08 * sin(uTime * 2.1);
+
+        /* Plasma granulation, 2 octaves, slow churn */
+        float g1 = fbm3(vP * 6.0  + uTime * 0.06);
+        float g2 = fbm3(vP * 16.0 - uTime * 0.10) * 0.5;
+        float gran = (g1 + g2) * 0.5 + 0.6;
+
+        /* Sunspot clusters: rarer, darker, low-frequency patches */
+        float spotN = fbm3(vP * 2.4 + vec3(4.0, 1.0, 0.0));
+        float spot  = smoothstep(0.58, 0.68, spotN);
+
+        vec3 col = mix(vec3(1.0, 0.95, 0.7) * 2.2, vec3(1.0, 0.65, 0.1) * 3.5, fr * 0.7);
+        col *= mix(1.0, 0.45, spot * (1.0 - fr));      /* sunspots dim the disk, not the rim */
+        col *= (0.75 + 0.35 * gran) * p;
+        col += vec3(1.0, 0.85, 0.5) * pow(fr, 0.6) * 0.6; /* bright limb faculae */
+        gl_FragColor = vec4(col, uFade);
+      }
+    `, THREE.AdditiveBlending);
+    const sunHaloMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
+      vertexShader: /* glsl */ `
+        varying vec3 vN;
+        void main() {
+          vN = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        varying vec3 vN;
+        uniform float uTime, uFade;
+        void main() {
+          float r = pow(1.0 - abs(dot(vN, vec3(0.0, 0.0, 1.0))), 2.0);
+          float p = 0.88 + 0.12 * sin(uTime * 1.8);
+          gl_FragColor = vec4(vec3(1.0, 0.6, 0.1) * r * 2.5 * p, r * 0.8 * uFade);
+        }
+      `,
+    });
+    const sunGroup = new THREE.Group();
+    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.40, 72, 72), sunCoreMat));
+    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.60, 56, 56), sunHaloMat));
+
+    /* ── Stage 4 · Trái Đất (Earth) ──
+       Finer jagged coastlines (2-octave landmass), twinkling city
+       lights on the night side, and clouds that tint the ground
+       beneath them a touch darker so the two layers read as separate */
+    const earthMat = heroMaterial(heroVS_plain, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 V = normalize(cameraPosition - vWP);
+        vec3 L = normalize(vec3(1.2, 0.5, 1.3));
+        float lambert = max(dot(N, L), 0.0);
+
+        float landBase = fbm3(vP * 2.6 + vec3(3.1, 1.7, 0.0));
+        float landEdge = fbm3(vP * 7.5 + vec3(1.4, 0.2, 2.6)) * 0.16;
+        float land  = smoothstep(0.46, 0.52, landBase + landEdge);
+
+        vec3 ocean  = mix(vec3(0.02, 0.10, 0.32), vec3(0.05, 0.28, 0.55), fbm3(vP * 6.0) * 0.5 + 0.5);
+        vec3 ground = mix(vec3(0.16, 0.32, 0.10), vec3(0.42, 0.36, 0.18), fbm3(vP * 5.0) * 0.5 + 0.5);
+        vec3 surf = mix(ocean, ground, land);
+        float polar = smoothstep(0.72, 0.92, abs(vP.y));
+        surf = mix(surf, vec3(0.88, 0.92, 0.96), polar);
+
+        /* Cloud shadow: same noise formula the cloud layer uses,
+           darkening the ground a touch wherever clouds sit above */
+        float cShadow = fbm3(vP * 4.0 + vec3(uTime * 0.02, 0.0, 0.0))
+                      * fbm3(vP * 8.0 - vec3(0.0, uTime * 0.015, 0.0));
+        surf *= 1.0 - smoothstep(0.30, 0.62, cShadow) * 0.22;
+
+        float spec = pow(max(dot(reflect(-L, N), V), 0.0), 40.0) * (1.0 - land) * 0.5;
+        vec3 lit = surf * (0.10 + lambert * 1.05) + vec3(1.0) * spec;
+
+        /* City lights: small twinkling specks, land + night side only */
+        float night = 1.0 - smoothstep(0.0, 0.16, lambert);
+        vec3 cell = floor(vP * 60.0);
+        float city = step(0.978, h3(cell)) * step(0.5, land) * night;
+        float twinkle = 0.6 + 0.4 * sin(uTime * 3.0 + h3(cell) * 30.0);
+        lit += vec3(1.0, 0.85, 0.5) * city * twinkle * 0.9;
+
+        lit += vec3(0.02, 0.03, 0.06) * (1.0 - lambert) * 0.6;
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 2.4);
+        lit += vec3(0.30, 0.55, 1.0) * fr * 0.5;
+        gl_FragColor = vec4(lit, uFade);
+      }
+    `, THREE.NormalBlending);
+    const cloudMat = heroMaterial(heroVS_plain, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 L = normalize(vec3(1.2, 0.5, 1.3));
+        float lambert = max(dot(N, L), 0.0);
+        float c = fbm3(vP * 4.0 + vec3(uTime * 0.02, 0.0, 0.0))
+                * fbm3(vP * 8.0 - vec3(0.0, uTime * 0.015, 0.0));
+        float cloud = smoothstep(0.30, 0.62, c);
+        gl_FragColor = vec4(vec3(1.0), cloud * (0.35 + lambert * 0.5) * uFade);
+      }
+    `, THREE.NormalBlending);
+    const earthGroup = new THREE.Group();
+    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.48, 96, 96), earthMat));
+    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.495, 64, 64), cloudMat));
+
+    [starGroup, moonGroup, sunGroup, earthGroup].forEach(g => heroRoot.add(g));
+
+    const heroStages = [
+      { group: starGroup,  mats: [starMat] },
+      { group: moonGroup,  mats: [moonMat] },
+      { group: sunGroup,   mats: [sunCoreMat, sunHaloMat] },
+      { group: earthGroup, mats: [earthMat, cloudMat] },
+    ];
+
+    /* Each world sits slightly off-axis from the last, so approaching
+       one feels like turning a corner deeper into a maze rather than
+       staring straight down one endless corridor — the offset resolves
+       back to dead-center exactly as the world becomes fully present */
+    const HERO_OFFSETS = [
+      { x:  0.00, y:  0.00 },
+      { x:  0.55, y: -0.30 },
+      { x: -0.45, y:  0.35 },
+      { x:  0.30, y:  0.22 },
+    ];
+
+    /* ═══════════════════════════════════════════
+       SHOOTING STARS (ultra slow-motion)
+       10 meteors, each travels for 12 s with long
+       trails. Speed is very low so the glowing
+       trail is fully visible.
+    ═══════════════════════════════════════════ */
+    const N_MET = 10;
+    const ACTIVE_DUR = 12.0; /* seconds each meteor is visible */
+
+    const metColors = [
+      [1.00, 0.96, 0.82], [0.62, 0.88, 1.00], [0.42, 1.00, 0.92],
+      [1.00, 0.52, 0.88], [0.80, 0.52, 1.00], [1.00, 0.88, 0.42],
+      [0.72, 1.00, 0.58], [0.90, 0.78, 1.00],
+    ];
+
+    const tailPos = new Float32Array(N_MET * 6);
+    const tailCol = new Float32Array(N_MET * 6);
+    const headPos = new Float32Array(N_MET * 3);
+    const headCol = new Float32Array(N_MET * 3);
+
+    const metData = [];
+    for (let m = 0; m < N_MET; m++) {
+      const ang   = Math.random() * Math.PI * 2;
+      const slope = (Math.random() - 0.5) * 0.5 - 0.08;
+      let dx = Math.cos(ang), dy = Math.sin(ang) + slope, dz = (Math.random() - 0.5) * 0.12;
+      const dl = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      dx /= dl; dy /= dl; dz /= dl;
+      metData.push({
+        dx, dy, dz,
+        speed:  0.28 + Math.random() * 0.60,    /* ultra slow */
+        trail:  5.5  + Math.random() * 7.5,     /* long trail */
+        period: 15   + Math.random() * 22,      /* rare interval */
+        phase:  Math.random() * 40,
+        sx: -dx * (6 + Math.random() * 5),
+        sy: -dy * (6 + Math.random() * 5) + (Math.random() - 0.5) * 3,
+        sz: -1 + Math.random() * 4,
+        bright: 0.65 + Math.random() * 0.35,
+        col:    metColors[m % metColors.length],
+      });
+    }
+
+    const tailGeo = new THREE.BufferGeometry();
+    tailGeo.setAttribute('position', new THREE.BufferAttribute(tailPos, 3));
+    tailGeo.setAttribute('color',    new THREE.BufferAttribute(tailCol, 3));
+    const meteorLines = new THREE.LineSegments(tailGeo, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+    }));
+    meteorLines.renderOrder = 9;
+    cosmicGroup.add(meteorLines);
+
+    const headGeo = new THREE.BufferGeometry();
+    headGeo.setAttribute('position', new THREE.BufferAttribute(headPos, 3));
+    headGeo.setAttribute('color',    new THREE.BufferAttribute(headCol, 3));
+    const meteorHeads = new THREE.Points(headGeo, new THREE.PointsMaterial({
+      vertexColors: true, size: 0.20, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      sizeAttenuation: true,
+    }));
+    meteorHeads.renderOrder = 9;
+    cosmicGroup.add(meteorHeads);
+
+    /* ═══════════════════════════════════════════
+       AMBIENT SOUND (synthesised, opt-in)
+    ═══════════════════════════════════════════ */
+    let audioCtx = null;
+    function initAudio() {
+      const ctx    = new (window.AudioContext || window.webkitAudioContext)();
+      const master = ctx.createGain();
+      master.gain.value = 0;
+      master.connect(ctx.destination);
+      master.gain.setTargetAtTime(0.10, ctx.currentTime, 2.0);
+
+      /* Drone oscillators */
+      [[42,'sine',0.42],[42.85,'sine',0.17],[84.3,'sine',0.12],
+       [126,'triangle',0.055],[210,'triangle',0.03]].forEach(([f,t,g]) => {
+        const o = ctx.createOscillator(), gn = ctx.createGain();
+        o.type = t; o.frequency.value = f; gn.gain.value = g;
+        o.connect(gn); gn.connect(master); o.start();
+      });
+      /* Band-pass noise */
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+      const d   = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns   = ctx.createBufferSource();
+      ns.buffer = buf; ns.loop = true;
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass'; filt.frequency.value = 195; filt.Q.value = 3.5;
+      const ng   = ctx.createGain(); ng.gain.value = 0.036;
+      ns.connect(filt); filt.connect(ng); ng.connect(master); ns.start();
+      const lfo  = ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 0.055;
+      const lg = ctx.createGain(); lg.gain.value = 75;
+      lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
+      /* Crystal harmonics */
+      [528, 531.5, 524.8, 792, 1056].forEach((f, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.value = i < 3 ? 0.0085 : 0.004;
+        o.connect(g); g.connect(master); o.start();
+      });
+      return ctx;
+    }
+
+    const sndBtn = document.getElementById('sndBtn');
+    sndBtn.addEventListener('click', () => {
+      if (!audioCtx) {
+        audioCtx = initAudio();
+        sndBtn.textContent = '♪ sound on';
+        sndBtn.classList.add('on');
+      } else if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+        sndBtn.classList.add('on');
+      }
+    });
+
+    /* ═══════════════════════════════════════════
+       STAGE CONTENT + INFO PANEL
+       Panel always previews the world being travelled
+       TOWARD — its "clarity" resolves first, then the
+       object itself is allowed to appear (see loop below).
+    ═══════════════════════════════════════════ */
+    const STAGES = [
+      {
+        title: 'Ngôi Sao', sub: 'Star · ánh sáng nguyên thủy',
+        desc: 'Một quả cầu plasma khổng lồ, tự phát sáng nhờ phản ứng nhiệt hạch diễn ra trong lõi.',
+        facts: [
+          'Nhiệt độ lõi: khoảng 15 triệu °C',
+          'Thành phần chính: hydro và heli',
+          'Ánh sáng đến từ phản ứng nhiệt hạch',
+          'Vòng đời có thể kéo dài hàng tỷ năm',
+        ],
+      },
+      {
+        title: 'Mặt Trăng', sub: 'Moon · vệ tinh của Trái Đất',
+        desc: 'Vệ tinh tự nhiên duy nhất của Trái Đất, bề mặt phủ đầy hố va chạm cổ đại.',
+        facts: [
+          'Khoảng cách trung bình: 384.400 km',
+          'Đường kính: 3.474 km',
+          'Không có khí quyển đáng kể',
+          'Luôn hướng một mặt về Trái Đất (khóa thủy triều)',
+        ],
+      },
+      {
+        title: 'Mặt Trời', sub: 'Sun · trung tâm hệ Mặt Trời',
+        desc: 'Ngôi sao gần Trái Đất nhất, cung cấp gần như toàn bộ năng lượng cho sự sống.',
+        facts: [
+          'Nhiệt độ bề mặt: khoảng 5.500 °C',
+          'Đường kính: 1,39 triệu km',
+          'Tuổi: khoảng 4,6 tỷ năm',
+          'Chiếm hơn 99% khối lượng hệ Mặt Trời',
+        ],
+      },
+      {
+        title: 'Trái Đất', sub: 'Earth · hành tinh xanh',
+        desc: 'Hành tinh duy nhất được biết đến có sự sống, với bề mặt phần lớn là đại dương.',
+        facts: [
+          'Khoảng cách tới Mặt Trời: ~150 triệu km',
+          'Đường kính: 12.742 km',
+          '71% bề mặt được bao phủ bởi nước',
+          'Tự quay: 24 giờ · quỹ đạo: 365,25 ngày',
+        ],
+      },
+    ];
+    const N = STAGES.length;
+
+    /* Per-world accent (r,g,b) — the panel's border/glow/track
+       lerp continuously between these as the journey progresses */
+    const ACCENTS = [
+      [170, 150, 255], /* star  — violet */
+      [150, 190, 255], /* moon  — slate-blue */
+      [255, 170, 90],  /* sun   — amber */
+      [110, 220, 200], /* earth — teal */
+    ];
+
+    const ipCur   = document.getElementById('ipCur');
+    const ipTitle = document.getElementById('ipTitle');
+    const ipSub   = document.getElementById('ipSub');
+    const ipDesc  = document.getElementById('ipDesc');
+    const ipFacts = document.getElementById('ipFacts');
+    const ipTrackFill = document.getElementById('ipTrackFill');
+    const infoPanel = document.getElementById('infoPanel');
+    const dots    = document.querySelectorAll('#infoPanel .dot');
+    const navPrev = document.getElementById('navPrev');
+    const navNext = document.getElementById('navNext');
+    let ipLiEls = [];
+
+    /* Swaps the panel's TEXT content — called once whenever the
+       "upcoming" world index changes, not every frame */
+    function renderPanelContent(i) {
+      const s = STAGES[i];
+      ipCur.textContent   = i + 1;
+      ipTitle.textContent = s.title;
+      ipSub.textContent   = s.sub;
+      ipDesc.textContent  = s.desc;
+      ipFacts.innerHTML   = '';
+      ipLiEls = s.facts.map(f => {
+        const li = document.createElement('li');
+        li.textContent = f;
+        ipFacts.appendChild(li);
+        return li;
+      });
+      dots.forEach((d, di) => d.classList.toggle('active', di === i));
+      navPrev.disabled = false;
+      navNext.disabled = false;
+    }
+
+    /* Applies the continuous "clarity" of the incoming transmission —
+       called every frame with ic ranging 0 (just a hint) → 1 (fully
+       resolved), plus the floor/next accent colors to blend between  */
+    function applyPanelClarity(ic, accFloor, accNext) {
+      const blur = (1 - ic) * 9;
+      const op   = 0.16 + 0.84 * ic;
+      infoPanel.style.opacity   = op.toFixed(3);
+      infoPanel.style.filter    = `blur(${blur.toFixed(2)}px)`;
+      infoPanel.style.transform = `translateY(-50%) scale(${(0.95 + 0.05 * ic).toFixed(3)})`;
+
+      const r = accFloor[0] + (accNext[0] - accFloor[0]) * ic;
+      const g = accFloor[1] + (accNext[1] - accFloor[1]) * ic;
+      const b = accFloor[2] + (accNext[2] - accFloor[2]) * ic;
+      infoPanel.style.setProperty('--accent', `${r | 0}, ${g | 0}, ${b | 0}`);
+
+      ipTrackFill.style.width = (ic * 100) + '%';
+
+      /* Facts resolve one after another — each line's own local
+         clarity is offset so they read top-to-bottom, not at once */
+      const n = ipLiEls.length || 1;
+      ipLiEls.forEach((li, idx) => {
+        const startAt = (idx / n) * 0.75;
+        const local = Math.max(0, Math.min(1, (ic - startAt) / (1 - startAt)));
+        li.style.opacity   = local.toFixed(3);
+        li.style.transform = `translateY(${((1 - local) * 8).toFixed(2)}px)`;
+      });
+    }
+
+    let lastUpcoming = -1;
+
+    /* ═══════════════════════════════════════════
+       INTERACTION
+       Drag (mouse) rotates the crystal. Real page
+       scroll — native, with a light smoothing lerp —
+       drives the dive into each successive world.
+       Reaching the last world silently wraps back to
+       the first, so the journey loops forever.
+    ═══════════════════════════════════════════ */
+    let isDragging = false;
+    let prevMouse  = { x: 0, y: 0 };
+    let rotVel     = { x: 0, y: 0 };
+    let outerRot   = { x: 0, y: 0 };
+
+    window.addEventListener('mousedown',  e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mouseup',    () => { isDragging = false; });
+    window.addEventListener('mousemove',  e => {
+      if (isDragging) {
+        rotVel.y += (e.clientX - prevMouse.x) * 0.006;
+        rotVel.x += (e.clientY - prevMouse.y) * 0.006;
+        prevMouse = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    const SEGMENT_VH = 320; /* scroll distance (vh) allocated per world — more
+                               room between worlds so the grow-in reads as a
+                               slow, deliberate approach rather than a quick cut */
+    function segmentPx()  { return window.innerHeight * SEGMENT_VH / 100; }
+    function getMaxScroll() { return Math.max(1, document.documentElement.scrollHeight - window.innerHeight); }
+
+    /* Nav buttons / keyboard jump to the START of a given world
+       (wrapping both directions), via real (smooth) page scroll */
+    function scrollToWorld(i) {
+      const idx = ((i % N) + N) % N;
+      window.scrollTo({ top: idx * segmentPx() + 3, behavior: 'smooth' });
+    }
+    navPrev.addEventListener('click', () => scrollToWorld(floorWorld - 1));
+    navNext.addEventListener('click', () => scrollToWorld(floorWorld + 1));
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); scrollToWorld(floorWorld + 1); }
+      if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  { e.preventDefault(); scrollToWorld(floorWorld - 1); }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = W() / H();
+      camera.updateProjectionMatrix();
+      renderer.setSize(W(), H());
+    });
+
+    /* ═══════════════════════════════════════════
+       RENDER LOOP
+    ═══════════════════════════════════════════ */
+    const clock = new THREE.Clock();
+
+    /* Collect all uniforms that need uTime updates */
+    const timedMats = [
+      bgMat, starMat, moonMat, sunCoreMat, sunHaloMat, earthMat, cloudMat,
+    ];
+
+    let smoothScrollY = window.scrollY;
+    let floorWorld    = 0;   /* the world we most recently fully arrived at */
+    let prevWp        = 0;   /* previous frame's continuous world position */
+    let wp            = 0;   /* the RENDERED world position — rate-limited, see below */
+    let camZ          = 3.3; /* smoothed camera dolly — see loop below */
+    let camFov        = 38;  /* smoothed camera FOV */
+    let lastFrameMs   = performance.now();
+
+    /* However fast you scroll, one world never resolves faster than
+       this — scroll position still steers direction/target, but the
+       reveal itself is paced like walking deeper into a maze corridor,
+       not a slider you can yank straight through                    */
+    const MIN_SECONDS_PER_WORLD = 5;
+
+    (function loop() {
+      requestAnimationFrame(loop);
+      const t = clock.getElapsedTime();
+
+      const nowMs = performance.now();
+      const dt = Math.min(0.1, (nowMs - lastFrameMs) / 1000);
+      lastFrameMs = nowMs;
+
+      /* Slow cosmic drift */
+      cosmicGroup.rotation.y += 0.00022;
+      cosmicGroup.rotation.x += 0.000095;
+
+      /* Asteroid orbits + self-tumble */
+      asteroidPivots.forEach(({ pivot, spd, mesh }) => {
+        pivot.rotation.y  += spd * 0.016;
+        mesh.rotation.x   += mesh.userData.rx;
+        mesh.rotation.z   += mesh.userData.rz;
+      });
+
+      /* ── Infinite loop: silently wrap the real scroll position back
+         near the top once it hits the very bottom, so the journey
+         just keeps going. Forward-only on purpose — the natural
+         resting position at the START of the page is ALSO y≈0, so a
+         symmetric "wrap the other way" here is indistinguishable from
+         just being at world 1 and would misfire constantly (that was
+         the cause of the glitching on manual scroll: every time you
+         drifted back near the top it silently teleported you to the
+         bottom, corrupting whatever you scrolled next).              */
+      let justWrapped = false;
+      {
+        const max = getMaxScroll();
+        const y   = window.scrollY;
+        if (y > max - 4) {
+          const carry = y - (max - 4);
+          window.scrollTo(0, 4 + carry);
+          smoothScrollY = 4 + carry;
+          justWrapped = true;
+        }
+      }
+
+      /* Smooth (lagged) read of the real scroll position — the
+         page scrolls natively; this just softens what we render */
+      smoothScrollY += (window.scrollY - smoothScrollY) * 0.075;
+      const rawWp = Math.max(0, Math.min(N - 0.0001, smoothScrollY / segmentPx()));
+
+      /* Rate-limit how fast the rendered position may chase the raw
+         scroll target — guarantees the ~5s-per-world reveal even on
+         a fast fling; a slow, deliberate scroll still tracks 1:1     */
+      if (justWrapped) {
+        wp = rawWp;
+      } else {
+        const maxStep = dt / MIN_SECONDS_PER_WORLD;
+        const diff = rawWp - wp;
+        wp = Math.abs(diff) > maxStep ? wp + Math.sign(diff) * maxStep : rawWp;
+      }
+
+      const floorP = Math.floor(wp);
+      const fracP  = wp - floorP;
+      const nextIndex = (floorP + 1) % N;
+      floorWorld = floorP;
+
+      let scrollDelta = wp - prevWp;
+      if (justWrapped) scrollDelta = 0;
+      prevWp = wp;
+
+      /* ── One continuous motion per segment, not a gated pop ──
+         growEase tracks fracP the WHOLE way (0 at the segment's
+         start → 1 at arrival), smoothstep-eased, so every bit of
+         scroll visibly grows/dives the next world a little more —
+         no flat plateau, no sudden jump. The info panel resolves on
+         the same curve but with a slight lead (finishes a touch
+         before full arrival), so the text still primes what's coming
+         without ever freezing the object at zero while you read.   */
+      const growEase = fracP * fracP * (3.0 - 2.0 * fracP); /* smoothstep(fracP) */
+
+      const infoRaw = Math.min(1, fracP / 0.82);
+      const ic = infoRaw * infoRaw * (3.0 - 2.0 * infoRaw);
+
+      /* Panel always previews "nextIndex" — swap its text once,
+         then drive its clarity continuously every frame */
+      if (nextIndex !== lastUpcoming) {
+        lastUpcoming = nextIndex;
+        renderPanelContent(nextIndex);
+      }
+      applyPanelClarity(ic, ACCENTS[floorP], ACCENTS[nextIndex]);
+
+      /* Hero presence: the current world recedes and the next world
+         grows in lockstep, gradually, across the whole segment */
+      const presence = new Array(N).fill(0);
+      presence[floorP]    = 1 - growEase;
+      presence[nextIndex] = Math.max(presence[nextIndex] || 0, growEase);
+
+      /* Rotation of the hero object itself — drag input plus a
+         subtle twist coupled to the scroll motion */
+      outerRot.y += rotVel.y + 0.0022 + scrollDelta * 0.9;
+      outerRot.x += rotVel.x;
+      outerRot.x  = Math.max(-0.9, Math.min(0.9, outerRot.x));
+      rotVel.x *= 0.93;
+      rotVel.y *= 0.93;
+
+      heroRoot.rotation.y = 0.18 + outerRot.y;
+      heroRoot.rotation.x = -0.42 + outerRot.x;
+
+      /* Hero stages: no shell, no frame — each world is a bare object
+         floating deep in open space. As presence rises it surges out
+         of the darkness from its own angle (see HERO_OFFSETS), growing
+         into a large, prominent presence — but capped well short of
+         swallowing the frame, so the cosmic backdrop stays visible all
+         around it; as presence falls it recedes back down that same
+         long corridor and drifts out of view                        */
+      heroStages.forEach((s, i) => {
+        const pres = presence[i];
+        const off  = HERO_OFFSETS[i];
+        const away = 1 - pres;
+        s.group.visible = pres > 0.003;
+        s.group.position.set(off.x * away, off.y * away, -away * 1.7);
+        s.group.rotation.z = (i === floorP ? 1 : -1) * away * 0.16;
+        s.group.scale.setScalar(0.05 + 1.45 * pres); /* halved — keep the cosmos visible around it */
+        s.group.rotation.y += 0.0016;
+        s.mats.forEach(m => { if (m.uniforms.uFade) m.uniforms.uFade.value = pres; });
+      });
+
+      /* A faint scroll-coupled parallax on the whole starfield/asteroid
+         backdrop — like corridor walls sliding past as you go deeper */
+      cosmicGroup.rotation.y += scrollDelta * 0.12;
+
+      /* World tint for the background nebula */
+      bgMat.uniforms.uWorldT.value = wp;
+
+      /* Update shared uniforms */
+      timedMats.forEach(m => { if (m.uniforms?.uTime) m.uniforms.uTime.value = t; });
+
+      /* ── Shooting star animation ── */
+      metData.forEach((m, mi) => {
+        const cy     = (t + m.phase) % m.period;
+        const active = cy < ACTIVE_DUR;
+        const b6 = mi * 6, b3 = mi * 3;
+
+        if (active) {
+          const prog = cy / ACTIVE_DUR;
+          const hd   = prog * m.speed * ACTIVE_DUR;
+          const td   = Math.max(0, hd - m.trail);
+          /* Smooth fade-in (9%) + graceful fade-out (last 28%) */
+          const fadeIn  = Math.min(1.0, prog / 0.09);
+          const fadeOut = 1.0 - Math.pow(Math.max(0.0, (prog - 0.72) / 0.28), 1.6);
+          const fade    = fadeIn * fadeOut * m.bright;
+
+          tailPos[b6]   = m.sx + m.dx * hd;
+          tailPos[b6+1] = m.sy + m.dy * hd;
+          tailPos[b6+2] = m.sz + m.dz * hd;
+          tailPos[b6+3] = m.sx + m.dx * td;
+          tailPos[b6+4] = m.sy + m.dy * td;
+          tailPos[b6+5] = m.sz + m.dz * td;
+          tailCol[b6]   = m.col[0] * fade; tailCol[b6+1] = m.col[1] * fade; tailCol[b6+2] = m.col[2] * fade;
+          tailCol[b6+3] = 0; tailCol[b6+4] = 0; tailCol[b6+5] = 0;
+
+          headPos[b3]   = tailPos[b6];
+          headPos[b3+1] = tailPos[b6+1];
+          headPos[b3+2] = tailPos[b6+2];
+          headCol[b3]   = m.col[0] * fade * 3.5;
+          headCol[b3+1] = m.col[1] * fade * 3.5;
+          headCol[b3+2] = m.col[2] * fade * 3.5;
+        } else {
+          for (let k = 0; k < 6; k++) { tailPos[b6+k] = 0; tailCol[b6+k] = 0; }
+          headPos[b3] = 0; headPos[b3+1] = -999; headPos[b3+2] = 0;
+          headCol[b3] = 0; headCol[b3+1] = 0;    headCol[b3+2] = 0;
+        }
+      });
+      tailGeo.attributes.position.needsUpdate = true;
+      tailGeo.attributes.color.needsUpdate    = true;
+      headGeo.attributes.position.needsUpdate = true;
+      headGeo.attributes.color.needsUpdate    = true;
+
+      /* Camera dive tracks the same growEase curve — the camera
+         eases forward gradually as you scroll deeper into a world,
+         then eases back out right after arrival. Kept modest (was a
+         much harder push-in) so the cosmic backdrop — nebula, Milky
+         Way, stars — stays visible around the object, not blotted out.
+         camZ/camFov are themselves smoothed so crossing a world
+         boundary (where the dive amount resets) never reads as a cut */
+      const dive = growEase;
+      const targetZ   = 3.3 - dive * 0.75;
+      const targetFov = 38 - dive * 4;
+      camZ   += (targetZ   - camZ)   * 0.10;
+      camFov += (targetFov - camFov) * 0.10;
+      camera.position.z = camZ + Math.sin(t * 0.15) * 0.05;
+      if (Math.abs(camera.fov - camFov) > 0.01) {
+        camera.fov = camFov;
+        camera.updateProjectionMatrix();
+      }
+
+      renderer.render(scene, camera);
+    })();
+
+  })(); /* end IIFE */
+  </script>
+</body>
+</html>
