@@ -409,15 +409,26 @@
           vec2 fd = vec2(-0.17,-0.41), fe = vec2(0.11,0.45), ff = vec2(-0.44,-0.07);
           float ba = 0.55+0.45*sin(uTime*0.42+0.8), bb = 0.55+0.45*sin(uTime*0.58+2.3), bc = 0.55+0.45*sin(uTime*0.35+4.1);
           float bd = 0.55+0.45*sin(uTime*0.65+1.5), be = 0.55+0.45*sin(uTime*0.48+3.7), bf = 0.55+0.45*sin(uTime*0.52+5.2);
-          col += vec3(0.90,0.94,1.0) * smoothstep(0.007,0.0,length(uv-fa)) * ba * 2.2;
-          col += vec3(0.86,0.90,1.0) * smoothstep(0.005,0.0,length(uv-fb)) * bb * 1.9;
-          col += vec3(0.95,0.92,1.0) * smoothstep(0.008,0.0,length(uv-fc)) * bc * 2.4;
-          col += vec3(0.90,0.88,1.0) * smoothstep(0.005,0.0,length(uv-fd)) * bd * 1.8;
-          col += vec3(0.88,0.93,1.0) * smoothstep(0.006,0.0,length(uv-fe)) * be * 2.0;
-          col += vec3(0.96,0.95,1.0) * smoothstep(0.009,0.0,length(uv-ff)) * bf * 2.6;
+          col += vec3(0.90,0.94,1.0) * smoothstep(0.011,0.0,length(uv-fa)) * ba * 2.2;
+          col += vec3(0.86,0.90,1.0) * smoothstep(0.008,0.0,length(uv-fb)) * bb * 1.9;
+          col += vec3(0.95,0.92,1.0) * smoothstep(0.013,0.0,length(uv-fc)) * bc * 2.4;
+          col += vec3(0.90,0.88,1.0) * smoothstep(0.008,0.0,length(uv-fd)) * bd * 1.8;
+          col += vec3(0.88,0.93,1.0) * smoothstep(0.009,0.0,length(uv-fe)) * be * 2.0;
+          col += vec3(0.96,0.95,1.0) * smoothstep(0.014,0.0,length(uv-ff)) * bf * 2.6;
+          /* Full 4-spike diffraction (H+V+diagonal) on all 6 hero stars —
+             a real bright-star cross pattern, not just a soft glow dot  */
           col += vec3(0.90,0.94,1.0) * (exp(-(uv.x-fa.x)*(uv.x-fa.x)*1800.0)*exp(-(uv.y-fa.y)*(uv.y-fa.y)*6200.0) + exp(-(uv.y-fa.y)*(uv.y-fa.y)*1800.0)*exp(-(uv.x-fa.x)*(uv.x-fa.x)*6200.0)) * ba * 0.55;
+          col += vec3(0.86,0.90,1.0) * (exp(-(uv.x-fb.x)*(uv.x-fb.x)*1800.0)*exp(-(uv.y-fb.y)*(uv.y-fb.y)*6200.0) + exp(-(uv.y-fb.y)*(uv.y-fb.y)*1800.0)*exp(-(uv.x-fb.x)*(uv.x-fb.x)*6200.0)) * bb * 0.48;
           col += vec3(0.95,0.92,1.0) * (exp(-(uv.x-fc.x)*(uv.x-fc.x)*1800.0)*exp(-(uv.y-fc.y)*(uv.y-fc.y)*6200.0) + exp(-(uv.y-fc.y)*(uv.y-fc.y)*1800.0)*exp(-(uv.x-fc.x)*(uv.x-fc.x)*6200.0)) * bc * 0.60;
+          col += vec3(0.90,0.88,1.0) * (exp(-(uv.x-fd.x)*(uv.x-fd.x)*1800.0)*exp(-(uv.y-fd.y)*(uv.y-fd.y)*6200.0) + exp(-(uv.y-fd.y)*(uv.y-fd.y)*1800.0)*exp(-(uv.x-fd.x)*(uv.x-fd.x)*6200.0)) * bd * 0.45;
+          col += vec3(0.88,0.93,1.0) * (exp(-(uv.x-fe.x)*(uv.x-fe.x)*1800.0)*exp(-(uv.y-fe.y)*(uv.y-fe.y)*6200.0) + exp(-(uv.y-fe.y)*(uv.y-fe.y)*1800.0)*exp(-(uv.x-fe.x)*(uv.x-fe.x)*6200.0)) * be * 0.50;
           col += vec3(0.96,0.95,1.0) * (exp(-(uv.x-ff.x)*(uv.x-ff.x)*1800.0)*exp(-(uv.y-ff.y)*(uv.y-ff.y)*6200.0) + exp(-(uv.y-ff.y)*(uv.y-ff.y)*1800.0)*exp(-(uv.x-ff.x)*(uv.x-ff.x)*6200.0)) * bf * 0.70;
+          { vec2 s = uv - fa; col += vec3(0.90,0.94,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * ba * 0.30; }
+          { vec2 s = uv - fb; col += vec3(0.86,0.90,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bb * 0.30; }
+          { vec2 s = uv - fc; col += vec3(0.95,0.92,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bc * 0.30; }
+          { vec2 s = uv - fd; col += vec3(0.90,0.88,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bd * 0.30; }
+          { vec2 s = uv - fe; col += vec3(0.88,0.93,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * be * 0.30; }
+          { vec2 s = uv - ff; col += vec3(0.96,0.95,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bf * 0.30; }
 
           /* World tint: whichever planet we're nearest to washes the
              nebula a touch in its own hue (8 stops, wraps) */
@@ -1022,7 +1033,18 @@
       col = mix(col, vec3(0.05, 0.16, 0.44), spot * 0.35);
     `, 'vec3(0.35, 0.55, 0.95)');
 
-    function makeRing(innerR, outerR, baseCol, opac) {
+    /* Saturn: a true Cassini Division + a fainter Encke gap.
+       Uranus: a single lighter gap — same shader body, a different
+       gapExpr snippet swapped in at build time (no dynamic branching). */
+    const SATURN_GAPS = /* glsl */ `
+      float cassini = 1.0 - smoothstep(0.41, 0.44, rNorm) * (1.0 - smoothstep(0.50, 0.53, rNorm));
+      float encke = 1.0 - smoothstep(0.70, 0.715, rNorm) * (1.0 - smoothstep(0.715, 0.73, rNorm)) * 0.6;
+      float gapMul = cassini * encke;
+    `;
+    const URANUS_GAPS = /* glsl */ `
+      float gapMul = 1.0 - smoothstep(0.53, 0.548, rNorm) * (1.0 - smoothstep(0.552, 0.57, rNorm)) * 0.5;
+    `;
+    function makeRing(innerR, outerR, baseCol, opac, gapExpr) {
       const mat = new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.NormalBlending,
         uniforms: {
@@ -1042,27 +1064,31 @@
             float r = length(vP.xy);
             float rNorm = clamp((r - uInner) / (uOuter - uInner), 0.0, 1.0);
 
-            /* Cassini Division: a real dark gap carved into the ring */
-            float cassini = smoothstep(0.44, 0.47, rNorm) * (1.0 - smoothstep(0.47, 0.50, rNorm));
+            ${gapExpr || SATURN_GAPS}
 
-            /* Many narrow bands, layered fbm — not one flat gradient */
-            float bandsN = fbm(vec2(rNorm * 28.0, 0.0)) * 0.5 + 0.5;
-            float detail  = fbm(vec2(rNorm * 82.0, 0.3)) * 0.25 + 0.75;
-            float radial  = bandsN * detail;
+            /* Ring band structure: radial fbm at two scales */
+            float bands  = fbm(vec2(rNorm * 30.0, 0.5)) * 0.6 + 0.4;
+            float detail = fbm(vec2(rNorm * 95.0, 1.3)) * 0.3 + 0.7;
+            float radial = bands * detail;
 
-            /* Anisotropic (Mie-style) scatter: ice particles backscatter
-               toward the Sun — the ring's true world-facing normal is
-               its local +Z axis (RingGeometry lies flat in XY), rotated
-               into world space so this reacts correctly to the tilt   */
-            vec3 ringNormalWorld = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
-            vec3 V = normalize(cameraPosition - (modelMatrix * vec4(vP, 1.0)).xyz);
-            float scatter = pow(max(dot(ringNormalWorld, V), 0.0), 0.3);
+            /* Real physics: phase angle between camera and Sun as seen
+               from the ring — ice particles forward-scatter light, so
+               a backlit ring (Sun roughly behind it from our view)
+               glows far more than a frontlit one                    */
+            vec3 ringPosWorld = (modelMatrix * vec4(vP, 1.0)).xyz;
+            vec3 V = normalize(cameraPosition - ringPosWorld);
+            vec3 sunDir = normalize(vec3(0.0, 0.0, -18.0) - ringPosWorld);
+            float phase = dot(-V, sunDir); /* -1 frontlit, +1 backlit */
+            float mie = pow(max(phase, 0.0), 3.0) * 0.8;
 
-            vec3 col = mix(uCol * 0.55, uCol * 1.4, radial);
-            col += uCol * 0.6 * (1.0 - scatter) * radial;
+            vec3 col = mix(uCol * 0.5, uCol * 1.4, radial);
+            col += uCol * mie * radial * 0.7;
 
-            float edge = smoothstep(0.0, 0.03, rNorm) * smoothstep(1.0, 0.95, rNorm);
-            float alpha = edge * (0.25 + radial * 0.55) * (1.0 - cassini * 0.88) * uOpac * uFade;
+            /* C-ring (innermost) is genuinely more transparent than B/A */
+            float cRingFade = smoothstep(0.0, 0.30, rNorm) * 0.55 + 0.45;
+
+            float edge = smoothstep(0.0, 0.025, rNorm) * smoothstep(1.0, 0.96, rNorm);
+            float alpha = edge * (0.20 + radial * 0.55) * gapMul * cRingFade * uOpac * uFade;
             gl_FragColor = vec4(col, alpha);
           }
         `,
@@ -1072,50 +1098,58 @@
 
     /* ── Volumetric atmosphere shell (rocky bodies + Earth only —
        gas giants get their own limb-darkening/backlit treatment
-       baked straight into gasGiantMat instead) ── */
-    function makeAtmosphere(radius, atmCol, thin) {
+       baked straight into gasGiantMat instead). uAtmDensity scales
+       the scatter brightness itself (a thin CO2 haze vs a thick
+       sulfuric cloud deck), independent of the Fresnel falloff shape. */
+    function makeAtmosphere(radius, atmCol, density) {
       const mat = new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
         uniforms: {
           uFade: { value: 0 },
           uAtmCol: { value: new THREE.Vector3(...atmCol) },
-          uThin: { value: thin == null ? 1.0 : thin },
+          uAtmDensity: { value: density == null ? 1.0 : density },
         },
         vertexShader: heroVS_plain,
         fragmentShader: /* glsl */ `
           varying vec3 vN, vWP, vP;
           uniform vec3 uAtmCol;
-          uniform float uFade, uThin;
+          uniform float uFade, uAtmDensity;
           void main() {
             vec3 V = normalize(cameraPosition - vWP);
             vec3 N = normalize(-vN); /* BackSide: normal points inward */
-            float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5) * uThin;
+            float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5);
             vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
             float sunlit = max(dot(-N, L), 0.0);
-            vec3 scatter = uAtmCol * (fr * (0.15 + sunlit * 0.85));
-            float limbSun = max(dot(reflect(V, N), L), 0.0);
-            scatter += uAtmCol * pow(limbSun, 6.0) * fr * 0.5;
-            gl_FragColor = vec4(scatter, clamp(fr * 1.2, 0.0, 1.0) * uFade);
+            vec3 scatter = uAtmCol * fr * (0.12 + sunlit * 0.88) * uAtmDensity;
+            vec3 refl = reflect(-V, N);
+            float limbSun = max(dot(refl, L), 0.0);
+            scatter += uAtmCol * pow(limbSun, 5.0) * fr * 0.55 * uAtmDensity;
+            float alpha = clamp(fr * 1.3, 0.0, 1.0) * uFade;
+            gl_FragColor = vec4(scatter, alpha);
           }
         `,
       });
-      return new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 64), mat);
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
     }
 
     /* ── Simulated bloom: a soft additive glow shell behind each body —
        no post-processing pipeline needed for a convincing halo ── */
-    function makeGlowHalo(radius, glowCol, opac) {
+    function makeGlowHalo(radius, glowCol, opac, frExp) {
       const mat = new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
-        uniforms: { uFade: { value: 0 }, uGlowCol: { value: new THREE.Vector3(...glowCol) }, uOpac: { value: opac } },
+        uniforms: {
+          uFade: { value: 0 }, uGlowCol: { value: new THREE.Vector3(...glowCol) },
+          uOpac: { value: opac }, uFrExp: { value: frExp == null ? 5.0 : frExp },
+        },
         vertexShader: heroVS_plain,
         fragmentShader: /* glsl */ `
           varying vec3 vN, vWP, vP;
           uniform vec3 uGlowCol;
-          uniform float uFade, uOpac;
+          uniform float uFade, uOpac, uFrExp;
           void main() {
             vec3 V = normalize(cameraPosition - vWP);
-            float fr = pow(1.0 - max(dot(normalize(-vN), V), 0.0), 4.0);
+            vec3 N = normalize(-vN); /* BackSide */
+            float fr = pow(1.0 - max(dot(N, V), 0.0), uFrExp);
             gl_FragColor = vec4(uGlowCol, fr * uOpac * uFade);
           }
         `,
@@ -1130,14 +1164,33 @@
       Jupiter: 0.62, Saturn: 0.56, Uranus: 0.50, Neptune: 0.48,
     };
     const heroDefs = [
-      ['Mercury', mercuryMat, { glow: null } ],
-      ['Venus',   venusMat,   { atmo: { col: [1.0, 0.65, 0.2] }, glow: [1.0, 0.7, 0.3] }],
-      ['Earth',   earthMat,   { cloud: true, atmo: { col: [0.18, 0.42, 1.0] }, glow: [0.2, 0.5, 1.0] }],
-      ['Mars',    marsMat,    { atmo: { col: [0.75, 0.38, 0.18], thin: 0.4 }, glow: [0.8, 0.4, 0.2] }],
-      ['Jupiter', jupiterMat, { glow: [0.85, 0.72, 0.55] }],
-      ['Saturn',  saturnMat,  { ring: { inner: 1.5, outer: 2.6, color: [0.86, 0.80, 0.60], opac: 0.92, tilt: Math.PI / 2.6 }, glow: [0.90, 0.84, 0.62] }],
-      ['Uranus',  uranusMat,  { ring: { inner: 1.55, outer: 1.82, color: [0.74, 0.88, 0.90], opac: 0.45, tilt: 1.45 }, glow: [0.5, 0.85, 0.88] }],
-      ['Neptune', neptuneMat, { glow: [0.2, 0.4, 0.9] }],
+      ['Mercury', mercuryMat, {} ],
+      ['Venus',   venusMat,   {
+        atmos: [{ mul: 1.12, col: [1.0, 0.65, 0.20], density: 1.8 }],
+        glow: [1.0, 0.70, 0.30],
+      }],
+      ['Earth',   earthMat,   {
+        cloud: true,
+        atmos: [
+          { mul: 1.09, col: [0.18, 0.45, 1.00], density: 1.0 },
+          { mul: 1.18, col: [0.10, 0.25, 0.80], density: 0.4 }, /* ionospheric glow */
+        ],
+        glow: [0.18, 0.50, 1.00],
+      }],
+      ['Mars',    marsMat,    {
+        atmos: [{ mul: 1.06, col: [0.72, 0.35, 0.16], density: 0.35 }],
+        glow: [0.80, 0.38, 0.18],
+      }],
+      ['Jupiter', jupiterMat, { glow: [0.86, 0.72, 0.52] }],
+      ['Saturn',  saturnMat,  {
+        ring: { inner: 1.5, outer: 2.6, color: [0.86, 0.80, 0.60], opac: 0.92, tilt: Math.PI / 2.6, gaps: SATURN_GAPS },
+        glow: [0.90, 0.84, 0.60],
+      }],
+      ['Uranus',  uranusMat,  {
+        ring: { inner: 1.55, outer: 1.82, color: [0.74, 0.88, 0.90], opac: 0.45, tilt: 1.45, gaps: URANUS_GAPS },
+        glow: [0.52, 0.86, 0.88],
+      }],
+      ['Neptune', neptuneMat, { glow: [0.22, 0.40, 0.92] }],
     ];
     const N = heroDefs.length;
     const heroStages = [];
@@ -1152,26 +1205,28 @@
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, segs, segs), mat);
       group.add(mesh);
       const mats = [mat];
-      if (extra && extra.cloud) {
+      if (extra.cloud) {
         group.add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.03, 64, 64), cloudMat));
         mats.push(cloudMat);
       }
-      if (extra && extra.ring) {
+      if (extra.ring) {
         const rc = extra.ring;
-        const ring = makeRing(r * rc.inner, r * rc.outer, rc.color, rc.opac);
+        const ring = makeRing(r * rc.inner, r * rc.outer, rc.color, rc.opac, rc.gaps);
         ring.rotation.x = rc.tilt;
         group.add(ring);
         mats.push(ring.material);
         ringMats.push(ring.material);
       }
-      if (extra && extra.atmo) {
-        const atmo = makeAtmosphere(r * 1.08, extra.atmo.col, extra.atmo.thin);
-        group.add(atmo);
-        mats.push(atmo.material);
-        atmoMats.push(atmo.material);
+      if (extra.atmos) {
+        extra.atmos.forEach(a => {
+          const atmo = makeAtmosphere(r * a.mul, a.col, a.density);
+          group.add(atmo);
+          mats.push(atmo.material);
+          atmoMats.push(atmo.material);
+        });
       }
-      if (extra && extra.glow) {
-        const glow = makeGlowHalo(r * 1.4, extra.glow, 0.12);
+      if (extra.glow) {
+        const glow = makeGlowHalo(r * 1.5, extra.glow, 0.10, 5.0);
         group.add(glow);
         mats.push(glow.material);
         glowMats.push(glow.material);
@@ -1179,6 +1234,68 @@
       heroRoot.add(group);
       heroStages.push({ group, mats });
     });
+
+    /* The Sun's own glow halo — much bigger and stronger than a
+       planet's, and driven by uSunFade rather than the per-stage uFade */
+    const sunGlow = makeGlowHalo(4.5, [1.0, 0.55, 0.1], 0.20, 3.0);
+    sunGroup.add(sunGlow);
+    sunMats.push(sunGlow.material);
+
+    /* ── Earth's Moon — orbits at a real 5° inclination, cratered and
+       airless, fades in lockstep with the Earth stage ── */
+    const moonCraterCalls2 = /* glsl */ `
+      craterBowl(n, normalize(vec3(0.5, 0.3, 0.7)), 0.30, 0.9) +
+      craterBowl(n, normalize(vec3(-0.4, 0.6, -0.3)), 0.20, 0.7) +
+      craterBowl(n, normalize(vec3(0.2, -0.7, 0.5)), 0.25, 0.8) +
+      craterBowl(n, normalize(vec3(-0.6, -0.2, -0.5)), 0.15, 0.6)
+    `;
+    const moonVS2 = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      ${COMMON}
+      float heroHeight(vec3 p) {
+        vec3 n = normalize(p);
+        float rough = (fbm3(p * 10.0) - 0.5) * 0.06;
+        float craters = ${moonCraterCalls2};
+        return rough * 0.05 + craters * 0.04;
+      }
+      ${heroDisplaceMain}
+    `;
+    const moonMat2 = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
+      vertexShader: moonVS2,
+      fragmentShader: /* glsl */ `
+        varying vec3 vN, vWP, vP;
+        uniform float uTime, uFade;
+        ${COMMON}
+        void main() {
+          vec3 N = normalize(vN);
+          vec3 V = normalize(cameraPosition - vWP);
+          vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP);
+          float lambert = max(dot(N, L), 0.0);
+          vec3 n = normalize(vP);
+          float alt = fbm3(vP * 5.0) * 0.5 + 0.5;
+          vec3 base = mix(vec3(0.32, 0.32, 0.33), vec3(0.60, 0.60, 0.62), alt);
+          /* Maria (dark volcanic plains) */
+          float maria = fbm3(vP * 1.8 + vec3(2.0, 1.0, 0.5));
+          base = mix(base, vec3(0.20, 0.20, 0.22), 1.0 - smoothstep(0.42, 0.52, maria));
+          float grit = fbmRidge3(vP * 30.0) - 0.5;
+          base *= 0.88 + grit * 0.24;
+          vec3 lit = base * (0.030 + lambert * 1.15);
+          float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+          lit += vec3(0.50, 0.50, 0.52) * fr * 0.025; /* almost no atmosphere */
+          lit += (grain(gl_FragCoord.xy, uTime) * 0.012) * (0.3 + lambert);
+          gl_FragColor = vec4(lit, uFade);
+        }
+      `,
+    });
+    const moonPivot = new THREE.Group();
+    moonPivot.rotation.z = 0.09; /* ~5° orbital inclination */
+    const moonMesh2 = new THREE.Mesh(new THREE.SphereGeometry(0.13, 48, 48), moonMat2);
+    moonMesh2.position.x = 0.88;
+    moonPivot.add(moonMesh2);
+    heroStages[2].group.add(moonPivot); /* index 2 = Earth */
+    heroStages[2].mats.push(moonMat2);
 
     /* Each planet approaches from its own angle — a corner of a maze,
        not one straight corridor — resolving to dead-center exactly as
@@ -1341,10 +1458,13 @@
     let prevMouse = { x: 0, y: 0 };
     let rotVel = { x: 0, y: 0 };
     let outerRot = { x: 0, y: 0 };
+    let mouseNX = 0, mouseNY = 0; /* normalized -0.5..0.5, drives the parallax tilt */
 
     window.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
     window.addEventListener('mouseup', () => { isDragging = false; });
     window.addEventListener('mousemove', e => {
+      mouseNX = (e.clientX / window.innerWidth - 0.5);
+      mouseNY = (e.clientY / window.innerHeight - 0.5);
       if (isDragging) {
         rotVel.y += (e.clientX - prevMouse.x) * 0.006;
         rotVel.x += (e.clientY - prevMouse.y) * 0.006;
@@ -1441,7 +1561,7 @@
     const timedMats = [
       bgMat, mercuryMat, marsMat, venusMat, earthMat, cloudMat,
       jupiterMat, saturnMat, uranusMat, neptuneMat, ...ringMats,
-      sunBodyMat,
+      sunBodyMat, moonMat2,
     ];
     /* JS-side smoothstep — used for the Sun's fade so the shaders
        just receive a plain float uniform, no edge-order ambiguity */
@@ -1457,6 +1577,8 @@
     let camZ = 3.3;
     let camFov = restFov();
     let lastFrameMs = performance.now();
+    let flareClock = 0; /* delta-accumulated — never jumps after a tab is backgrounded */
+    let mouseTargetRX = 0, mouseTargetRY = 0;
     const MIN_SECONDS_PER_WORLD = 5;
 
     (function loop() {
@@ -1465,9 +1587,13 @@
       const nowMs = performance.now();
       const dt = Math.min(0.1, (nowMs - lastFrameMs) / 1000);
       lastFrameMs = nowMs;
+      flareClock += dt;
 
       cosmicGroup.rotation.y += 0.00022;
       cosmicGroup.rotation.x += 0.000095;
+
+      /* Earth's Moon: a real orbital rate, delta-driven */
+      moonPivot.rotation.y += 0.28 * dt;
 
       asteroidPivots.forEach(({ pivot, spd, mesh }) => {
         pivot.rotation.y += spd * 0.016;
@@ -1528,8 +1654,12 @@
       outerRot.x = Math.max(-0.9, Math.min(0.9, outerRot.x));
       rotVel.x *= 0.93;
       rotVel.y *= 0.93;
-      heroRoot.rotation.y = 0.18 + outerRot.y;
-      heroRoot.rotation.x = -0.30 + outerRot.x;
+      /* Mouse parallax: a slow, lazy tilt toward the cursor, additive
+         on top of drag rotation — never replacing it */
+      mouseTargetRX += (mouseNY * 0.04 - mouseTargetRX) * 0.03;
+      mouseTargetRY += (mouseNX * 0.05 - mouseTargetRY) * 0.03;
+      heroRoot.rotation.y = 0.18 + outerRot.y + mouseTargetRY;
+      heroRoot.rotation.x = -0.30 + outerRot.x + mouseTargetRX;
 
       heroStages.forEach((s, i) => {
         const pres = presence[i];
@@ -1553,11 +1683,11 @@
       coronaShells.forEach(s => { s.material.uniforms.uFade.value = sunFade; });
       sunFlares.forEach(({ pts, mat, i }) => {
         pts.position.set(
-          SUN_POS.x + Math.sin(t * 0.3 + i * Math.PI / 2) * 1.25,
-          SUN_POS.y + Math.cos(t * 0.2 + i * Math.PI / 2) * 1.25,
+          SUN_POS.x + Math.sin(flareClock * 0.3 + i * Math.PI / 2) * 1.25,
+          SUN_POS.y + Math.cos(flareClock * 0.2 + i * Math.PI / 2) * 1.25,
           SUN_POS.z
         );
-        mat.opacity = (0.5 + 0.5 * Math.sin(t + i)) * sunFade;
+        mat.opacity = (0.5 + 0.5 * Math.sin(flareClock + i)) * sunFade;
       });
 
       timedMats.forEach(m => { if (m.uniforms?.uTime) m.uniforms.uTime.value = t; });
@@ -1597,6 +1727,15 @@
       camFov += (targetFov - camFov) * 0.10;
       camera.position.z = camZ + Math.sin(t * 0.15) * 0.05;
       if (Math.abs(camera.fov - camFov) > 0.01) { camera.fov = camFov; camera.updateProjectionMatrix(); }
+
+      /* Cinematic micro-breathing — organic, not robotic. Assigned
+         (not +=) on x/y: nothing else drives those axes, so
+         accumulating onto them every frame would drift the camera
+         off-axis forever instead of gently oscillating in place.
+         z is safe to += since it was freshly assigned just above.   */
+      camera.position.x = Math.sin(t * 0.23) * 0.007;
+      camera.position.y = Math.cos(t * 0.17) * 0.005;
+      camera.position.z += Math.sin(t * 0.31) * 0.003;
 
       renderer.render(scene, camera);
     })();
