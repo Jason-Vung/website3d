@@ -188,7 +188,7 @@
 
   <canvas id="c"></canvas>
   <canvas id="flareCanvas" aria-hidden="true"></canvas>
-  <div class="hint">kéo để xoay · cuộn để khám phá · lăn sâu để đến gần</div>
+  <div class="hint">kéo để xoay · cuộn để khám phá · nhấp để zoom cận cảnh</div>
   <div id="sndBtn">SND OFF</div>
 
   <div id="infoPanel">
@@ -800,13 +800,19 @@
       [2.35,-0.88,0.52,0.009,2.8,0.115],[2.80,0.38,1.05,0.008,5.0,0.095],
     ];
     const asteroidPivots = [];
-    aOrbits.forEach(([orbitR, tX, tZ, spd, ang, sz]) => {
+    aOrbits.forEach(([orbitR, tX, tZ, spd, ang, sz], ai) => {
       const mat = new THREE.ShaderMaterial({ side: THREE.FrontSide, uniforms: {}, vertexShader: asteroidVS, fragmentShader: asteroidFS });
-      const geo = new THREE.SphereGeometry(sz, 7, 7);
+      /* Faceted crystal shards, not rounded rocks — an Icosahedron/Octahedron
+         base (genuinely flat triangular faces, unlike a subdivided sphere)
+         jittered per-vertex, then de-indexed so computeVertexNormals gives
+         each triangle its OWN flat normal instead of smoothing across faces —
+         this is what actually reads as "crystal" rather than "asteroid".   */
+      let geo = ai % 2 === 0 ? new THREE.IcosahedronGeometry(sz, 0) : new THREE.OctahedronGeometry(sz, 0);
+      geo = geo.toNonIndexed();
       const pos = geo.attributes.position;
       for (let j = 0; j < pos.count; j++) {
         const x=pos.getX(j), y=pos.getY(j), z=pos.getZ(j);
-        const r=Math.sqrt(x*x+y*y+z*z), d=1+(Math.random()-0.5)*0.72;
+        const r=Math.sqrt(x*x+y*y+z*z), d=1+(Math.random()-0.5)*0.55;
         pos.setXYZ(j, x/r*r*d, y/r*r*d, z/r*r*d);
       }
       pos.needsUpdate = true; geo.computeVertexNormals();
@@ -1965,8 +1971,28 @@
     let outerRot = { x: 0, y: 0 };
     let mouseNX = 0, mouseNY = 0; /* normalized -0.5..0.5, drives the parallax tilt */
 
-    window.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
-    window.addEventListener('mouseup', () => { isDragging = false; });
+    /* Click-to-focus: a genuine click (not a drag-release) on the planet
+       currently in view punches the camera in a little closer, then eases
+       back — layered ON TOP of the scroll-driven dive as a pure additive
+       offset (see focusPunch in the render loop) so it never fights or
+       overrides the continuous scroll camera math, and always decays back
+       to exactly where scroll alone would have put the camera.          */
+    let focusPunch = 0;
+    let downPos = { x: 0, y: 0 };
+    const focusRaycaster = new THREE.Raycaster();
+    const focusMouse = new THREE.Vector2();
+    window.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; downPos = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mouseup', e => {
+      isDragging = false;
+      const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+      if (moved < 6) {
+        focusMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        focusMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        focusRaycaster.setFromCamera(focusMouse, camera);
+        const hits = focusRaycaster.intersectObject(heroRoot, true);
+        if (hits.length) focusPunch = 1.0;
+      }
+    });
     window.addEventListener('mousemove', e => {
       mouseNX = (e.clientX / window.innerWidth - 0.5);
       mouseNY = (e.clientY / window.innerHeight - 0.5);
@@ -2274,8 +2300,10 @@
       headGeo.attributes.position.needsUpdate = true;
       headGeo.attributes.color.needsUpdate = true;
 
+      focusPunch *= 0.94; /* eases back to 0 — camZ silently returns to the
+                              pure scroll-driven value once it's negligible */
       const dive = growEase;
-      const targetZ = 3.3 - dive * 0.75;
+      const targetZ = 3.3 - dive * 0.75 - focusPunch * 0.55;
       const targetFov = restFov() - dive * 4;
       camZ += (targetZ - camZ) * 0.10;
       camFov += (targetFov - camFov) * 0.10;
