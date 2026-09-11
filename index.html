@@ -205,6 +205,12 @@
     }
     #ipFacts li .stat-value { font-family: var(--font-mono); font-weight: 300; font-size: 12px; color: var(--gray-lo); }
     #ipDesc { font-family: var(--font-ui); font-weight: 300; font-size: 11px; line-height: 1.7; color: var(--gray-mid); margin-top: 16px; }
+    /* Live real-time Kepler-computed distance — a genuinely true, ticking
+       fact (not a static textbook average like the other rows)          */
+    #ipLive {
+      font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .04em;
+      color: var(--accent); opacity: .8; margin-top: 10px;
+    }
     @media (max-width: 640px) {
       #infoPanel { width: min(210px, 50vw); padding: 16px 14px; }
       #ipTitle { font-size: 14px; }
@@ -262,6 +268,7 @@
     <div id="ipTitle"></div>
     <div id="ipSub"></div>
     <ul id="ipFacts"></ul>
+    <div id="ipLive"></div>
     <p id="ipDesc"></p>
   </div>
 
@@ -1908,6 +1915,43 @@
     ];
 
     /* ═══════════════════════════════════════════
+       REAL KEPLERIAN ORBITAL MECHANICS — live "distance from the Sun
+       today" readout in the info panel. J2000 orbital elements (a in
+       AU, e = eccentricity, L0 = mean longitude at epoch in degrees,
+       T = orbital period in days) are real published values, same
+       ones an actual orrery would use — not simplified/invented.
+       This does NOT drive the visual scene (the hero stages are still
+       staged one at a time by scroll, not a simultaneous multi-body
+       orbit view — a real Kepler simulation only fits that different
+       kind of scene), it only feeds one live, true fact per planet.  */
+    const J2000 = Date.UTC(2000, 0, 1, 12, 0, 0);
+    const AU_KM = 149597870;
+    const ORBITAL_ELEMENTS = [
+      { a: 0.387, e: 0.206, L0: 252.3,  T: 87.97   }, // Mercury
+      { a: 0.723, e: 0.007, L0: 181.98, T: 224.70  }, // Venus
+      { a: 1.000, e: 0.017, L0: 100.46, T: 365.25  }, // Earth
+      { a: 1.524, e: 0.093, L0: 355.45, T: 686.97  }, // Mars
+      { a: 5.203, e: 0.049, L0: 34.40,  T: 4332.59 }, // Jupiter
+      { a: 9.537, e: 0.057, L0: 49.95,  T: 10759.22}, // Saturn
+      { a: 19.191,e: 0.046, L0: 313.24, T: 30688.5 }, // Uranus
+      { a: 30.069,e: 0.010, L0: 304.88, T: 60182.0 }, // Neptune
+    ];
+    function solveKepler(M, e, iter = 8) {
+      let E = M;
+      for (let i = 0; i < iter; i++) E = M + e * Math.sin(E);
+      return E;
+    }
+    function currentDistanceKm(i, daysSinceJ2000) {
+      const p = ORBITAL_ELEMENTS[i];
+      const n = (2 * Math.PI) / p.T;
+      const M0 = (p.L0 * Math.PI) / 180;
+      const M = ((M0 + n * daysSinceJ2000) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      const E = solveKepler(M, p.e);
+      const rAU = p.a * (1 - p.e * Math.cos(E));
+      return rAU * AU_KM;
+    }
+
+    /* ═══════════════════════════════════════════
        STAGE CONTENT + INFO PANEL
     ═══════════════════════════════════════════ */
     /* Content sourced from science.nasa.gov per-planet fact pages (Mercury,
@@ -1977,6 +2021,7 @@
     const ipSub = document.getElementById('ipSub');
     const ipDesc = document.getElementById('ipDesc');
     const ipFacts = document.getElementById('ipFacts');
+    const ipLive = document.getElementById('ipLive');
     const ipTrackFill = document.getElementById('ipTrackFill');
     const ipTrackVFill = document.getElementById('ipTrackVFill');
     const infoPanel = document.getElementById('infoPanel');
@@ -1990,6 +2035,17 @@
       return b;
     });
     let ipLiEls = [];
+    let ipLiveIndex = 0;
+
+    function formatDistanceKm(km) {
+      return km >= 1e9 ? (km / 1e9).toFixed(2) + ' tỷ km' : (km / 1e6).toFixed(1) + ' triệu km';
+    }
+    function updateLiveDistance() {
+      const daysSinceJ2000 = (Date.now() - J2000) / 86400000;
+      const km = currentDistanceKm(ipLiveIndex, daysSinceJ2000);
+      ipLive.textContent = `Hôm nay: cách Mặt Trời ~${formatDistanceKm(km)} (Kepler, thời gian thực)`;
+    }
+    setInterval(updateLiveDistance, 1000);
 
     function renderPanelContent(i) {
       const s = STAGES[i];
@@ -2006,6 +2062,8 @@
         ipFacts.appendChild(li);
         return li;
       });
+      ipLiveIndex = i;
+      updateLiveDistance();
     }
 
     function applyPanelClarity(ic, accFloor, accNext, floorP) {
