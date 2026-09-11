@@ -1132,8 +1132,96 @@
        neutral gray — a slight R>G>B cast on both the low and high albedo
        ends is what actually separates Mercury from a plain gray rock.   */
     const mercuryMat = makeRockyMat([0.38, 0.35, 0.32], [0.70, 0.65, 0.60], 0.0, [0.55, 0.50, 0.46], 0.035);
+
+    /* Mars gets its own shader (not the shared generic rocky one Mercury
+       uses) so it can carry its two most identifiable real features:
+       Valles Marineris — the "deep gash" NASA's own site calls out —
+       and Olympus Mons, the solar system's tallest volcano, which the
+       info panel already claims but nothing was actually rendering.   */
+    const marsCanyonCalc = /* glsl */ `
+      /* Valles Marineris: a vast rift running across the disk, modeled
+         as a bounded trench along one great-circle band on the sphere */
+      vec3 canyonPlaneN = normalize(vec3(0.15, 0.92, 0.05));
+      vec3 canyonDir = normalize(cross(canyonPlaneN, vec3(0.0, 0.0, 1.0)));
+      float canyonCross = dot(n, canyonPlaneN);
+      float canyonAlong = dot(n, canyonDir);
+      float canyonEnds = smoothstep(1.0, 0.5, abs(canyonAlong));
+      float canyonTrench = smoothstep(0.06, 0.0, abs(canyonCross)) * canyonEnds;
+      float canyonRimBand = smoothstep(0.10, 0.06, abs(canyonCross)) * smoothstep(0.06, 0.10, abs(canyonCross)) * canyonEnds;
+      float canyon = canyonRimBand * 0.35 - canyonTrench;
+    `;
+    const marsVolcanoCalc = /* glsl */ `
+      /* Olympus Mons: a broad shield with a shallow summit caldera —
+         a raised dome, not a crater bowl */
+      float volcanoD = length(n - normalize(vec3(0.2, -0.1, 0.95))) / 0.34;
+      float volcanoDome = smoothstep(1.0, 0.0, volcanoD);
+      float volcanoCaldera = smoothstep(0.18, 0.0, volcanoD);
+      float volcano = volcanoDome - volcanoCaldera * 0.5;
+    `;
+    const marsVS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      ${COMMON}
+      float heroHeight(vec3 p) {
+        vec3 n = normalize(p);
+        float rough = (fbm3(p * 9.0) - 0.5) * 0.07 + (fbmRidge3(p * 20.0) - 0.5) * 0.05;
+        float craters = ${rockyCraterCalls};
+        ${rockySmallCalc}
+        ${marsCanyonCalc}
+        ${marsVolcanoCalc}
+        return rough * 0.06 + craters * 0.044 + small * 0.017 + canyon * 0.05 + volcano * 0.10;
+      }
+      ${heroDisplaceMain}
+    `;
+    const marsFS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade, uPolar;
+      uniform vec3 uBaseLow, uBaseHigh, uRimCol;
+      uniform float uRimStrength;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 V = normalize(cameraPosition - vWP);
+        vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
+        float lambert = max(dot(N, L), 0.0);
+        vec3 n = normalize(vP);
+        vec3 p = vP;
+        float alt = fbm3(vP * 4.0) * 0.5 + 0.5;
+        vec3 base = mix(uBaseLow, uBaseHigh, alt);
+        float craters = ${rockyCraterCalls};
+        base *= 1.0 - clamp(-craters, 0.0, 1.0) * 0.40;
+        base += clamp(craters, 0.0, 1.0) * 0.08;
+        ${rockySmallCalc}
+        base *= 1.0 - clamp(-small, 0.0, 1.0) * 0.30;
+        base += clamp(small, 0.0, 1.0) * 0.06;
+        ${marsCanyonCalc}
+        base *= 1.0 - clamp(-canyon, 0.0, 1.0) * 0.45; /* dust-shadowed trench floor */
+        base += clamp(canyon, 0.0, 1.0) * 0.05;
+        ${marsVolcanoCalc}
+        base *= 1.0 - volcanoDome * 0.12;    /* darker basaltic flank */
+        base *= 1.0 - volcanoCaldera * 0.35; /* darker summit caldera */
+        float polarCap = smoothstep(0.80, 0.94, abs(vP.y)) * uPolar;
+        base = mix(base, vec3(0.92, 0.94, 0.98), polarCap);
+        float grit = fbmRidge3(vP * 34.0) - 0.5;
+        base *= 0.90 + grit * 0.22;
+        vec3 lit = base * (0.028 + lambert * 1.20);
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+        lit += uRimCol * fr * uRimStrength;
+        lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
+        gl_FragColor = vec4(lit, uFade);
+      }
+    `;
     /* Mars: real but very thin CO2 atmosphere — a faint dusty pink-tan haze, not a glow */
-    const marsMat    = makeRockyMat([0.42, 0.15, 0.06], [0.86, 0.42, 0.20], 1.0, [0.82, 0.52, 0.38], 0.11);
+    const marsMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: {
+        uTime: { value: 0 }, uFade: { value: 0 }, uPolar: { value: 1.0 },
+        uBaseLow: { value: new THREE.Vector3(0.42, 0.15, 0.06) },
+        uBaseHigh: { value: new THREE.Vector3(0.86, 0.42, 0.20) },
+        uRimCol: { value: new THREE.Vector3(0.82, 0.52, 0.38) },
+        uRimStrength: { value: 0.11 },
+      },
+      vertexShader: marsVS, fragmentShader: marsFS,
+    });
 
     /* ── Venus — thick smooth swirling cloud deck ── */
     const venusMat = heroMaterial(heroVS_plain, /* glsl */ `
@@ -1155,14 +1243,17 @@
         float bands = fbm3(wp * 3.0 + vec3(uTime * 0.01, 0.0, 0.0)) * 0.6
                     + fbm3(wp * 7.0 - vec3(0.0, uTime * 0.008, 0.0)) * 0.4;
         float ridges = fbmRidge3(wp * 9.0 - vec3(0.0, 0.0, uTime * 0.012)) - 0.5;
-        vec3 base = mix(vec3(0.74, 0.42, 0.14), vec3(0.95, 0.68, 0.32), bands);
-        base *= 0.90 + ridges * 0.22;
+        /* Real Venus (Mariner 10 / Akatsuki true color) is pale creamy
+           white with tan cloud bands — much less saturated/orange than
+           a "desert" palette; the sulfuric-acid haze washes everything out */
+        vec3 base = mix(vec3(0.80, 0.72, 0.55), vec3(0.97, 0.93, 0.80), bands);
+        base *= 0.94 + ridges * 0.14;
         /* Thick global atmosphere means Venus barely dims at the
            terminator in reality — a lower floor than an airless body,
            but still darker than the old flat "always half-lit" look */
         vec3 lit = base * (0.16 + lambert * 0.86);
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
-        lit += vec3(1.0, 0.78, 0.42) * fr * 0.32;
+        lit += vec3(1.0, 0.92, 0.72) * fr * 0.28;
         lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
         gl_FragColor = vec4(lit, uFade);
       }
@@ -1331,6 +1422,15 @@
       float bv = lat * 6.0 + warp;
       vec3 col = mix(vec3(0.80, 0.72, 0.52), vec3(0.94, 0.88, 0.70), smoothstep(-0.4, 0.4, sin(bv)));
       col = mix(col, vec3(0.70, 0.60, 0.42), smoothstep(0.5, 0.8, sin(bv * 1.7)) * 0.3);
+      /* Saturn's real north-pole hexagon: a persistent six-sided jet
+         stream, unique among the planets and specifically NASA-noted —
+         north pole only (lat > 0, not abs(lat)), not a generic polar cap */
+      if (lat > 0.82) {
+        float hexAngle = atan(vP.z, vP.x) * 3.0 / 3.14159265;
+        float hexCell = fract(hexAngle);
+        float hexBand = abs(hexCell - 0.5) * 2.0;
+        col *= 0.85 + hexBand * 0.20;
+      }
     `, 'vec3(0.92, 0.86, 0.66)', /* glsl */ `
       /* The ring casts a real shadow on the sunlit hemisphere: cast a
          ray from this surface point toward the Sun (object-space) and
@@ -1368,14 +1468,6 @@
       float spotD = length(normalize(vP) - spotCenter) / 0.20;
       float spot = smoothstep(1.0, 0.0, spotD);
       col = mix(col, vec3(0.05, 0.16, 0.44), spot * 0.35);
-      /* A real hexagonal polar vortex, à la Saturn's — but here on
-         Neptune's own pole, a faint honeycomb banding near abs(lat)>0.82 */
-      if (abs(lat) > 0.82) {
-        float hexAngle = atan(vP.z, vP.x) * 3.0 / 3.14159265;
-        float hexCell = fract(hexAngle);
-        float hexBand = abs(hexCell - 0.5) * 2.0;
-        col *= 0.85 + hexBand * 0.20;
-      }
     `, 'vec3(0.35, 0.55, 0.95)');
 
     /* Saturn: a true Cassini Division + a fainter Encke gap.
