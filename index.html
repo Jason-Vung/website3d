@@ -1824,48 +1824,6 @@
       { x: -0.6, y:  0.9 },
     ];
 
-    /* ── Speed lines: 20 radial segments that streak outward from
-       center right at the start of each approach, like a warp punch */
-    const SPEED_LINE_COUNT = 20;
-    const speedLinePos = new Float32Array(SPEED_LINE_COUNT * 6);
-    for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-      const a = (i / SPEED_LINE_COUNT) * Math.PI * 2;
-      speedLinePos[i * 6]     = Math.cos(a) * 0.05; speedLinePos[i * 6 + 1] = Math.sin(a) * 0.05; speedLinePos[i * 6 + 2] = 0;
-      speedLinePos[i * 6 + 3] = Math.cos(a) * 0.06; speedLinePos[i * 6 + 4] = Math.sin(a) * 0.06; speedLinePos[i * 6 + 5] = 0;
-    }
-    const speedLineGeo = new THREE.BufferGeometry();
-    speedLineGeo.setAttribute('position', new THREE.BufferAttribute(speedLinePos, 3));
-    const speedLineMat = new THREE.LineBasicMaterial({
-      color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
-    });
-    const speedLines = new THREE.LineSegments(speedLineGeo, speedLineMat);
-    speedLines.frustumCulled = false;
-    markBloom(speedLines); /* a warp-punch effect should bloom */
-    camera.add(speedLines); /* fixed to the camera — always screen-centered */
-    scene.add(camera); /* a camera must be in the scene graph for its children to render */
-
-    function updateSpeedLines(fracP) {
-      const active = fracP < 0.15;
-      const prog = active ? fracP / 0.15 : 0;
-      const len = prog * 2.5;
-      const posAttr = speedLineGeo.attributes.position;
-      for (let i = 0; i < SPEED_LINE_COUNT; i++) {
-        const a = (i / SPEED_LINE_COUNT) * Math.PI * 2;
-        const dx = Math.cos(a), dy = Math.sin(a);
-        posAttr.array[i * 6]     = dx * 0.05;
-        posAttr.array[i * 6 + 1] = dy * 0.05;
-        posAttr.array[i * 6 + 3] = dx * (0.05 + len);
-        posAttr.array[i * 6 + 4] = dy * (0.05 + len);
-      }
-      posAttr.needsUpdate = true;
-      speedLineMat.opacity = active ? (1.0 - prog) * 0.35 : 0;
-      /* place the whole streak system a couple units in front of the
-         camera lens, at a scale small enough to read as a screen-space
-         overlay rather than a 3-D object floating in the scene       */
-      speedLines.position.set(0, 0, -2);
-      speedLines.scale.setScalar(1.4);
-    }
-
     /* ═══════════════════════════════════════════
        STAGE CONTENT + INFO PANEL
     ═══════════════════════════════════════════ */
@@ -2164,20 +2122,69 @@
 
       return { ctx, master };
     }
+
+    /* ═══════════════════════════════════════════
+       AI VOICE NARRATION — English, "a person from the future"
+       narrating each world as you arrive. Uses the browser's own
+       Web Speech API (SpeechSynthesis) — no external service, no
+       network call, works fully inside the sandbox. The exact voice/
+       accent is whatever the visitor's OS/browser ships (Web Speech
+       gives no way to guarantee a specific one); we bias the pick
+       toward a deeper male English voice and slow the pitch/rate a
+       touch for a calmer, more distant-narrator read, but that is a
+       nudge, not a guarantee, of the "future" character requested.
+       Content is drawn from the same NASA-sourced facts as the panel,
+       not invented, just told as a short spoken story per world.    */
+    const NARRATION = [
+      "This is Mercury, the closest world to the Sun. Its gray, cratered surface bears the Caloris Basin, one of the largest impact scars in the solar system. Daytime scorches past four hundred thirty degrees Celsius; night falls to minus one eighty. No atmosphere survives here, only a whisper of gas blown away by the solar wind.",
+      "Venus turns backward. Its day is longer than its year, and the Sun rises in the west. Beneath thick clouds of sulfuric acid, the surface reaches four hundred sixty four degrees Celsius, hot enough to melt lead. Yet fifty kilometers up, in the clouds, conditions turn almost gentle. Some still wonder if something could live there.",
+      "Your home. The only world known to hold liquid water on its surface, and the only one known to hold life. A single moon, born from an ancient collision, has quietly stabilized this planet's tilt for billions of years, the reason the seasons here have stayed gentle enough for life to endure.",
+      "The red planet, colored by iron oxide. Valles Marineris cuts nearly four thousand kilometers across its face, ten times longer than the Grand Canyon. Rivers once ran here, billions of years ago. Nothing lives on Mars today, but scientists still search its ancient rock for what might have once.",
+      "The giant. A storm called the Great Red Spot has raged here for over three hundred years, wide enough to swallow the Earth twice over. Jupiter itself could never support life, but its moon Europa hides a vast ocean beneath its ice, one of the most promising places to search for life beyond Earth.",
+      "Crowned by rings spanning two hundred eighty two thousand kilometers, yet barely ten meters thick, billions of fragments of ice and rock, held in perfect order. At its north pole, a six sided storm turns, wider than some of its own moons. Two of those moons, Titan and Enceladus, may hide oceans of their own.",
+      "Tipped almost completely on its side, Uranus rolls around the Sun like a wheel, not a top. A collision, long ago, knocked it over, and gave one hemisphere a winter that lasts twenty one years in darkness. Its pale blue green comes from methane, quietly absorbing the red light of a distant Sun.",
+      "The outermost world, discovered not by eye but by mathematics, its existence predicted before anyone ever saw it through a telescope. Here, the fastest winds in the solar system tear past two thousand one hundred kilometers an hour, howling through the darkest, coldest reaches of our system.",
+    ];
+    let narratorVoice = null;
+    function pickNarratorVoice() {
+      if (!('speechSynthesis' in window)) return;
+      const voices = speechSynthesis.getVoices();
+      const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+      const preferred = ['Daniel', 'Google UK English Male', 'Alex', 'Fred', 'Male'];
+      narratorVoice = en.find(v => preferred.some(n => v.name.includes(n))) || en[0] || voices[0] || null;
+    }
+    if ('speechSynthesis' in window) {
+      pickNarratorVoice();
+      speechSynthesis.onvoiceschanged = pickNarratorVoice;
+    }
+    let lastNarrated = -1;
+    function narratePlanet(i) {
+      if (!('speechSynthesis' in window) || !audio || audio.ctx.state !== 'running') return;
+      speechSynthesis.cancel(); /* never overlap — a fast scroll should cut to the new world, not queue every world skipped past */
+      const u = new SpeechSynthesisUtterance(NARRATION[i]);
+      if (narratorVoice) u.voice = narratorVoice;
+      u.lang = 'en-US'; u.pitch = 0.82; u.rate = 0.94; u.volume = 1.0;
+      speechSynthesis.speak(u);
+      lastNarrated = i;
+    }
+
     const sndBtn = document.getElementById('sndBtn');
     sndBtn.addEventListener('click', () => {
       if (!audio) {
         audio = initAudio();
         sndBtn.textContent = 'SND ON';
         sndBtn.classList.add('on');
+        narratePlanet(floorWorld); /* speak the world already on screen right away */
       } else if (audio.ctx.state === 'suspended') {
         audio.ctx.resume();
         sndBtn.textContent = 'SND ON';
         sndBtn.classList.add('on');
+        narratePlanet(floorWorld);
       } else {
         audio.ctx.suspend();
         sndBtn.textContent = 'SND OFF';
         sndBtn.classList.remove('on');
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
       }
     });
 
@@ -2264,6 +2271,7 @@
       const fracP = wp - floorP;
       const nextIndex = (floorP + 1) % N;
       floorWorld = floorP;
+      if (floorP !== lastNarrated) narratePlanet(floorP); /* no-ops silently if sound is off */
 
       let scrollDelta = wp - prevWp;
       if (justWrapped) scrollDelta = 0;
@@ -2382,10 +2390,6 @@
          frame — otherwise the swing reads as a sideways strafe past
          the planet instead of an arc AROUND it while staying framed */
       camera.lookAt(0, 0, 0);
-
-      /* Speed lines: a brief radial warp-streak right at the start of
-         each approach (fracP < 0.15), like a fast scroll punching in */
-      updateSpeedLines(fracP);
 
       renderWithBloom();
       drawLensFlare(sunFade);
