@@ -14,25 +14,13 @@
     html, body {
       background: #010008;
       width: 100vw;
-      overflow-x: hidden;
+      height: 100dvh;
+      overflow: hidden;
     }
     canvas {
       display: block;
       position: fixed;
       inset: 0;
-    }
-    /* Real scrollable height — one tall invisible column.
-       The canvas + UI stay fixed; scrolling through this is
-       what drives the journey through each world.          */
-    #scrollSpacer {
-      position: relative;
-      width: 100%;
-      height: 1280vh;   /* 4 worlds × 320vh of travel each */
-      height: 1280dvh;  /* dynamic viewport height — stays in sync with
-                            window.innerHeight as mobile browser chrome
-                            shows/hides, instead of drifting out of sync
-                            with the static `vh` unit while scrolling  */
-      pointer-events: none;
     }
 
     /* ── Hint text ── */
@@ -44,7 +32,7 @@
       font: 300 9px/1 'Cinzel', serif;
       letter-spacing: .28em;
       text-transform: uppercase;
-      color: rgba(180, 140, 255, .18);
+      color: rgba(180, 140, 255, .22);
       white-space: nowrap;
       pointer-events: none;
       z-index: 5;
@@ -67,7 +55,7 @@
       z-index: 20;
     }
     @media (max-width: 640px), (pointer: coarse) {
-      #sndBtn  { padding: 10px 14px; font-size: 10px; } /* bigger tap target */
+      #sndBtn { padding: 10px 14px; font-size: 10px; } /* bigger tap target */
     }
     #sndBtn:hover { color: rgba(210, 185, 255, .6); border-color: rgba(210, 185, 255, .38); }
     #sndBtn.on   { color: rgba(140, 210, 255, .6); border-color: rgba(140, 210, 255, .35); }
@@ -79,193 +67,46 @@
       background: #010008;
       pointer-events: none;
       z-index: 60;
-      opacity: 1;                          /* start fully opaque */
+      opacity: 1;
       transition: opacity 2.5s ease-in-out;
     }
 
-    /* ═══════════════════════════════════════════════════
-       INFO PANEL — right side, updates per scroll stage
-    ═══════════════════════════════════════════════════ */
-    #infoPanel {
-      --accent: 180, 150, 255; /* recomputed every frame in JS as the
-                                  journey blends from one world's hue
-                                  to the next's — drives every rgba()
-                                  below that references it            */
+    /* ── Floating name labels, one per body, screen-projected ── */
+    #labels {
       position: fixed;
-      top: 50%;
-      right: 22px;
-      transform: translateY(-50%);
-      width: min(258px, 34vw);
-      padding: 18px 18px 16px;
-      background: linear-gradient(160deg, rgba(30, 14, 54, .38), rgba(8, 4, 22, .42));
-      border: 1px solid rgba(var(--accent), .18);
-      border-radius: 10px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 0 26px rgba(var(--accent), .10);
-      color: rgba(225, 220, 245, .82);
-      font-family: 'Cinzel', serif;
-      z-index: 15;
+      inset: 0;
       pointer-events: none;
-      /* opacity / blur / scale are written every rAF from JS, driven
-         directly by how "resolved" the incoming world's info is —
-         no CSS transition here, the scroll smoothing IS the easing */
+      z-index: 8;
     }
-    #ipTrack {
-      height: 2px;
-      width: 100%;
-      background: rgba(255, 255, 255, .08);
-      border-radius: 2px;
-      overflow: hidden;
-      margin-bottom: 10px;
-    }
-    #ipTrackFill {
-      height: 100%;
-      width: 0%;
-      border-radius: 2px;
-      background: rgb(var(--accent));
-    }
-    .ip-label {
-      font: 300 10px/1 'Cinzel', serif;
-      letter-spacing: .2em;
-      text-transform: uppercase;
-      color: rgba(var(--accent), .6);
-      margin-bottom: 10px;
-    }
-    .ip-index {
-      font: 300 10px/1 'Cinzel', serif;
-      letter-spacing: .2em;
-      color: rgba(170, 190, 255, .5);
-      margin-bottom: 10px;
-    }
-    .ip-index .ip-sep { opacity: .5; margin: 0 2px; }
-    #ipTitle {
-      font: 500 20px/1.15 'Cinzel', serif;
-      letter-spacing: .04em;
-      color: rgba(235, 225, 255, .96);
-      margin-bottom: 4px;
-    }
-    #ipSub {
-      font: 300 9.5px/1 'Cinzel', serif;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: rgba(150, 195, 255, .55);
-      margin-bottom: 12px;
-    }
-    #ipDesc {
-      font: 300 12px/1.55 system-ui, sans-serif;
-      color: rgba(220, 215, 240, .72);
-      margin-bottom: 12px;
-      letter-spacing: .01em;
-    }
-    #ipFacts {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 14px;
-    }
-    #ipFacts li {
-      font: 300 11px/1.4 system-ui, sans-serif;
-      color: rgba(200, 205, 230, .68);
-      padding-left: 12px;
-      position: relative;
-      /* opacity + transform written per-frame from JS, staggered
-         per line so each fact resolves a beat after the last     */
-    }
-    #ipFacts li::before {
-      content: '';
+    .planetLabel {
       position: absolute;
-      left: 0; top: 6px;
-      width: 4px; height: 4px;
-      border-radius: 50%;
-      background: rgba(var(--accent), .65);
+      transform: translate(-50%, 6px);
+      font: 300 10px/1 'Cinzel', serif;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: rgba(235, 232, 250, .82);
+      text-shadow: 0 0 6px rgba(0, 0, 0, .85), 0 0 16px rgba(130, 160, 255, .35);
+      white-space: nowrap;
+      transition: opacity .25s ease;
     }
-    .ip-dots {
-      display: flex;
-      gap: 7px;
-    }
-    .ip-dots .dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: rgba(180, 150, 255, .22);
-      transition: background .3s, transform .3s;
-    }
-    .ip-dots .dot.active {
-      background: rgba(var(--accent), .9);
-      transform: scale(1.25);
-    }
-    @media (max-width: 640px) {
-      #infoPanel {
-        width: min(200px, 46vw);
-        padding: 13px 13px 12px;
-        right: calc(12px + env(safe-area-inset-right, 0px));
-      }
-      #ipTitle { font-size: 16px; }
-      #ipDesc  { font-size: 10.5px; }
-      #ipFacts li { font-size: 9.5px; }
-    }
-
-    /* ── Stage nav arrows (fallback for touch / accessibility) ── */
-    #stageNav {
-      position: fixed;
-      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 14px;
-      z-index: 15;
-    }
-    #stageNav button {
-      font: 300 13px/1 'Cinzel', serif;
-      color: rgba(180, 150, 255, .45);
-      background: transparent;
-      border: 1px solid rgba(180, 150, 255, .18);
-      border-radius: 50%;
-      width: 30px; height: 30px;
-      cursor: pointer;
-      transition: color .25s, border-color .25s, opacity .25s;
-    }
-    #stageNav button:hover { color: rgba(210, 185, 255, .7); border-color: rgba(210, 185, 255, .4); }
-    #stageNav button:disabled { opacity: .25; cursor: default; }
-    @media (max-width: 640px), (pointer: coarse) {
-      #stageNav button { width: 40px; height: 40px; font-size: 15px; } /* easier to tap */
+    .planetLabel.sunLabel {
+      font-size: 12px;
+      letter-spacing: .22em;
+      color: rgba(255, 230, 180, .92);
+      text-shadow: 0 0 8px rgba(0, 0, 0, .8), 0 0 18px rgba(255, 180, 80, .5);
     }
   </style>
 </head>
 <body>
 
   <canvas id="c"></canvas>
-  <div class="hint">kéo để xoay · cuộn để lặn sâu qua từng thế giới</div>
+  <div class="hint">kéo để xoay hệ · cuộn để phóng to / thu nhỏ</div>
   <div id="sndBtn">♪ sound</div>
-
-  <div id="infoPanel">
-    <div id="ipTrack"><div id="ipTrackFill"></div></div>
-    <div class="ip-label">Sắp tới</div>
-    <div class="ip-index"><span id="ipCur">1</span><span class="ip-sep">/</span><span id="ipTotal">4</span></div>
-    <div id="ipTitle"></div>
-    <div id="ipSub"></div>
-    <p id="ipDesc"></p>
-    <ul id="ipFacts"></ul>
-    <div class="ip-dots">
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
-    </div>
-  </div>
-
-  <div id="stageNav">
-    <button id="navPrev" aria-label="Trước">‹</button>
-    <button id="navNext" aria-label="Sau">›</button>
-  </div>
-
+  <div id="labels"></div>
   <div id="veil"></div>
-
-  <!-- Invisible tall column — its scroll height is what drives
-       the whole journey. Canvas + UI above stay fixed on screen. -->
-  <div id="scrollSpacer" aria-hidden="true"></div>
 
   <!-- ═══════════════════════════════════════════════════
        VEIL REMOVAL — runs independently of Three.js
-       Even if WebGL / Three.js fails, the black screen
-       fades away so the user at least sees an error
   ═══════════════════════════════════════════════════ -->
   <script>
     (function () {
@@ -277,8 +118,6 @@
           if (v.parentNode) v.parentNode.removeChild(v);
         }, 2800);
       }
-      /* 400 ms gives Three.js a moment to start the render loop
-         before the veil disappears, preventing flash of content */
       setTimeout(fadeVeil, 400);
     })();
   </script>
@@ -291,7 +130,6 @@
   ═══════════════════════════════════════════════════ -->
   <script>
   (function () {
-    /* ── Safety check: Three.js must be loaded ── */
     if (typeof THREE === 'undefined') {
       console.error('[scene] THREE.js failed to load — cannot render scene.');
       return;
@@ -313,17 +151,17 @@
     renderer.toneMappingExposure = 1.1;
     renderer.sortObjects = true;
 
-    /* Portrait / narrow phone screens need a wider vertical FOV to frame
-       the hero object the same way a landscape laptop window does — a
-       fixed FOV reads as too tight/cropped once aspect drops below ~1 */
+    /* Portrait / narrow phone screens get a wider vertical FOV so the
+       whole spread-out system still fits the frame                  */
     function restFov() {
       const aspect = W() / H();
-      return aspect < 0.8 ? 52 : aspect < 1.05 ? 46 : 38;
+      return aspect < 0.8 ? 62 : aspect < 1.05 ? 52 : 42;
     }
 
     const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(restFov(), W() / H(), 0.05, 120);
-    camera.position.set(0, 0, 3.3);
+    const camera = new THREE.PerspectiveCamera(restFov(), W() / H(), 0.05, 200);
+    const CAM_Y = 3.4; /* fixed elevation for the 3/4 overhead view */
+    camera.position.set(0, CAM_Y, 15.5);
     camera.lookAt(0, 0, 0);
 
     /* ═══════════════════════════════════════════
@@ -332,15 +170,12 @@
        avoid WebGL ES driver incompatibilities
     ═══════════════════════════════════════════ */
     const COMMON = /* glsl */ `
-      /* 2-D hash: maps vec2 cell id → pseudo-random float in [0,1) */
       float h2(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5);
       }
-      /* 3-D hash */
       float h3(vec3 p) {
         return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5);
       }
-      /* Smooth noise (2-D) */
       float n2(vec2 p) {
         vec2 i = floor(p), f = fract(p);
         f = f * f * (3.0 - 2.0 * f);
@@ -350,7 +185,6 @@
           f.y
         );
       }
-      /* Fractional Brownian Motion — 3 octaves */
       float fbm(vec2 p) {
         return 0.5 * n2(p) + 0.25 * n2(p * 2.0) + 0.125 * n2(p * 4.0);
       }
@@ -358,11 +192,9 @@
         return 0.5 * n2(p.xy) + 0.25 * n2(p.yz * 2.0) + 0.125 * n2(p.xz * 4.0);
       }
       /* Cellular (Voronoi) distance to the nearest of 9 randomly
-         jittered lattice points — the classic "cell mosaic" look
-         (solar granulation, small impact craters). The 3×3
-         neighborhood is fully unrolled, no dynamic loop; picking the
-         running minimum uses step()/mix() rather than if() so it
-         stays branch-free on strict WebGL ES drivers.              */
+         jittered lattice points — solar granulation, small craters.
+         3×3 neighborhood fully unrolled (no dynamic loop); the
+         running minimum uses step()/mix() to stay branch-free.     */
       vec2 voronoi2(vec2 p) {
         vec2 ip = floor(p);
         vec2 fp = fract(p);
@@ -389,9 +221,6 @@
         s = step(d, bd); bid = mix(bid, h2(ip+g+vec2(3.1,9.7)), s); bd = min(bd, d);
         return vec2(sqrt(bd), bid);
       }
-      /* Same cellular pattern projected onto a sphere via 3 planes
-         (same trick fbm3 already uses) — good enough to avoid an
-         obvious seam for a fine, scattered surface feature          */
       vec2 cellular3(vec3 p) {
         vec2 a = voronoi2(p.xy);
         vec2 b = voronoi2(p.yz);
@@ -401,17 +230,13 @@
         return vec2(m, id);
       }
       /* Radial crater profile — a real dish-shaped dent with a
-         slightly raised rim, evaluated on the unit sphere direction.
-         Used as ACTUAL vertex displacement (not just a color trick),
-         and the identical call is reused in the fragment shader so
-         the shading lines up exactly with the geometric dent/rim.  */
+         slightly raised rim, evaluated on the unit-sphere direction. */
       float craterBowl(vec3 n, vec3 center, float radius, float depth) {
         float d = length(n - center) / radius;
         float bowl = smoothstep(1.0, 0.0, d);
         float rim  = exp(-pow((d - 1.05) * 6.0, 2.0));
         return depth * (rim * 0.45 - bowl);
       }
-      /* Multi-spike starburst highlight for crystal surfaces */
       float starburst(vec3 N, vec3 V, vec3 L, float sh) {
         vec3 H    = normalize(L + V);
         float core = pow(max(dot(N, H), 0.0), sh);
@@ -432,43 +257,31 @@
 
     /* ═══════════════════════════════════════════
        BACKGROUND — fullscreen quad via clip-space trick
-       PlaneGeometry(2,2) → vertices at exactly ±1 in
-       clip space → covers whole viewport, UVs = [0,1]
     ═══════════════════════════════════════════ */
     const bgMat = new THREE.ShaderMaterial({
       depthWrite: false,
-      uniforms: { uTime: { value: 0 }, uWorldT: { value: 0 } },
-
-      /* Clip-space full-screen quad — bypasses projection entirely */
+      uniforms: { uTime: { value: 0 } },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
           vUv = uv;
-          /* position.xy are in [-1,1] for PlaneGeometry(2,2)
-             → directly usable as clip-space coords         */
           gl_Position = vec4(position.xy, 0.999, 1.0);
         }
       `,
-
       fragmentShader: /* glsl */ `
         varying vec2 vUv;
         uniform float uTime;
-        uniform float uWorldT;
         ${COMMON}
-
         void main() {
-          /* uv centered: (-0.5,0.5) × (-0.5,0.5)            */
           vec2 uv = vUv - 0.5;
           float t = uTime * 0.0012;
 
-          /* ── Base deep-space gradient ── */
           vec3 col = mix(
             vec3(0.030, 0.010, 0.115),
             vec3(0.008, 0.003, 0.045),
             length(uv) * 1.8
           );
 
-          /* ── Nebula clouds (3 overlapping fbm layers) ── */
           float nc1 = fbm(uv * 2.1 + vec2(t, 0.0));
           float nc2 = fbm(uv * 3.7 + nc1 * 0.4 + vec2(0.1, t * 1.1));
           float nc3 = fbm(uv * 6.2 + nc2 * 0.26 - vec2(t * 0.9, t * 1.3));
@@ -481,7 +294,6 @@
           col += vec3(0.80, 0.06, 0.58) * smoothstep(0.60, 0.96, nc1 * nc2) * 0.10;
           col += vec3(0.70, 0.36, 0.06) * smoothstep(0.30, 0.0, length(uv)) * 0.15;
 
-          /* ── Milky Way diagonal band ── */
           float mwD    = uv.x * 0.72 + uv.y * 0.54;
           float mwFall = smoothstep(0.34, 0.0, abs(mwD));
           float mwN1   = fbm(uv * 5.4  + vec2(t * 0.28, 0.0))
@@ -495,9 +307,6 @@
                  * smoothstep(0.07, 0.0, abs(mwD))
                  * smoothstep(0.32, 0.54, mwN2) * 0.52;
 
-          /* ── Scale-A stars: fine grid, ~28 000 cells ──
-             Using step() instead of if() — avoids dynamic
-             branching on strict WebGL ES drivers          */
           vec2 gA = vUv * vec2(212.0, 136.0);
           vec2 cA = floor(gA);
           vec2 fA = fract(gA);
@@ -507,7 +316,7 @@
           float rA4 = h2(cA + vec2(93.5, 37.2));
           float rA5 = h2(cA + vec2(57.8, 15.1));
           float rA6 = h2(cA + vec2(19.3, 78.6));
-          float visA = step(0.50, rA1);          /* 1 if star cell, 0 otherwise */
+          float visA = step(0.50, rA1);
           float dA   = length(fA - vec2(rA2, rA3));
           float szA  = 0.0020 + rA4 * 0.0095;
           float blA  = 0.48 + 0.52 * sin(uTime * (0.20 + rA6 * 1.65) + rA1 * 22.5);
@@ -518,14 +327,12 @@
                      rA5 < 0.82 ? mix(vec3(1.0,  0.92, 0.73), vec3(1.0, 0.84, 0.56), rA4) :
                                   vec3(1.0, 0.66, 0.42);
           col += scA * bA;
-          /* Cross-flare on brighter A-stars */
           float flareA = step(0.80, rA4);
           col += scA * (
             exp(-abs(fA.x - rA2) * 230.0) * exp(-dA * dA * 360.0) +
             exp(-abs(fA.y - rA3) * 230.0) * exp(-dA * dA * 360.0)
           ) * bA * 2.1 * flareA;
 
-          /* ── Scale-B stars: medium grid, ~9 000 cells ── */
           vec2 gB = vUv * vec2(91.0, 58.0);
           vec2 cB = floor(gB);
           vec2 fB = fract(gB);
@@ -533,7 +340,6 @@
           float rB2 = h2(cB + vec2(14.5, 71.3));
           float rB3 = h2(cB + vec2(62.1, 29.8));
           float rB4 = h2(cB + vec2(43.8, 57.2));
-          float rB5 = h2(cB + vec2(87.3, 12.6));  /* unused but keeps hash chain */
           float rB6 = h2(cB + vec2(33.7, 91.4));
           float visB = step(0.68, rB1);
           float dB   = length(fB - vec2(rB2, rB3));
@@ -548,7 +354,6 @@
             exp(-abs(fB.y - rB3) * 150.0) * exp(-dB * dB * 210.0)
           ) * bB * 3.2;
 
-          /* ── Scale-C stars: coarse grid, ~1 400 cells (brightest) ── */
           vec2 gC = vUv * vec2(35.0, 22.0);
           vec2 cC = floor(gC);
           vec2 fC = fract(gC);
@@ -570,8 +375,6 @@
             exp(-abs(fC.y - rC3) * 80.0) * exp(-dC * dC * 120.0)
           ) * bC * 4.5;
 
-          /* ── 6 hardcoded accent stars with cross flares ──
-             (replaces the for-loop from earlier versions)    */
           vec2 fa = vec2( 0.22,  0.34);
           vec2 fb = vec2(-0.31,  0.18);
           vec2 fc = vec2( 0.40, -0.23);
@@ -590,7 +393,6 @@
           col += vec3(0.90, 0.88, 1.0) * smoothstep(0.005, 0.0, length(uv - fd)) * bd * 1.8;
           col += vec3(0.88, 0.93, 1.0) * smoothstep(0.006, 0.0, length(uv - fe)) * be * 2.0;
           col += vec3(0.96, 0.95, 1.0) * smoothstep(0.009, 0.0, length(uv - ff)) * bf * 2.6;
-          /* Cross flares on 3 of the accents */
           col += vec3(0.90, 0.94, 1.0) * (
             exp(-(uv.x-fa.x)*(uv.x-fa.x)*1800.0) * exp(-(uv.y-fa.y)*(uv.y-fa.y)*6200.0) +
             exp(-(uv.y-fa.y)*(uv.y-fa.y)*1800.0) * exp(-(uv.x-fa.x)*(uv.x-fa.x)*6200.0)
@@ -604,49 +406,27 @@
             exp(-(uv.y-ff.y)*(uv.y-ff.y)*1800.0) * exp(-(uv.x-ff.x)*(uv.x-ff.x)*6200.0)
           ) * bf * 0.70;
 
-          /* ── World tint: each of the 4 worlds washes the whole
-             nebula in its own hue; uWorldT (0..3, wraps) blends
-             between whichever two are nearest — gives every world
-             its own atmosphere without touching the star-fields ── */
-          float wt = uWorldT;
-          float w0 = clamp(1.0 - abs(wt - 0.0), 0.0, 1.0) + clamp(1.0 - abs(wt - 4.0), 0.0, 1.0);
-          float w1 = clamp(1.0 - abs(wt - 1.0), 0.0, 1.0);
-          float w2 = clamp(1.0 - abs(wt - 2.0), 0.0, 1.0);
-          float w3 = clamp(1.0 - abs(wt - 3.0), 0.0, 1.0);
-          vec3 worldTint = vec3(0.12, 0.06, 0.24) * w0   /* star   — violet   */
-                         + vec3(0.05, 0.07, 0.13) * w1   /* moon   — slate    */
-                         + vec3(0.22, 0.10, 0.02) * w2   /* sun    — ember    */
-                         + vec3(0.02, 0.11, 0.14) * w3;  /* earth  — teal     */
-          col += worldTint * 0.6;
-
-          /* ── Vignette ── */
           col *= smoothstep(1.0, 0.26, length(uv));
-
           gl_FragColor = vec4(col, 1.0);
         }
       `,
     });
-
-    /* Background mesh — renderOrder -10 so it renders FIRST,
-       before any 3-D particles or objects                    */
     const bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
     bgMesh.renderOrder = -10;
     scene.add(bgMesh);
 
     /* ═══════════════════════════════════════════
-       COSMIC GROUP (slowly auto-rotates)
-       Contains: 3-D star cloud, Milky Way disc,
-                 cosmic dust, asteroids, meteors
+       COSMIC GROUP — 3-D star cloud, Milky Way disc,
+       cosmic dust, an asteroid belt, shooting stars
     ═══════════════════════════════════════════ */
     const cosmicGroup = new THREE.Group();
     scene.add(cosmicGroup);
 
-    /* ── 3-D Star Cloud (5 000 points, spherical shell) ── */
     const STARS3D = 5000;
     const s3P = new Float32Array(STARS3D * 3);
     const s3C = new Float32Array(STARS3D * 3);
     for (let i = 0; i < STARS3D; i++) {
-      const r  = 6 + Math.pow(Math.random(), 0.38) * 16;
+      const r  = 9 + Math.pow(Math.random(), 0.38) * 24;
       const th = Math.random() * Math.PI * 2;
       const ph = Math.acos(2 * Math.random() - 1);
       s3P[i*3]   = r * Math.sin(ph) * Math.cos(th);
@@ -665,29 +445,23 @@
     s3Geo.setAttribute('position', new THREE.BufferAttribute(s3P, 3));
     s3Geo.setAttribute('color',    new THREE.BufferAttribute(s3C, 3));
     const starCloud = new THREE.Points(s3Geo, new THREE.PointsMaterial({
-      vertexColors:   true,
-      size:           0.030,
-      transparent:    true,
-      opacity:        1,
-      depthWrite:     false,
-      blending:       THREE.AdditiveBlending,
-      sizeAttenuation: true,
+      vertexColors: true, size: 0.045, transparent: true, opacity: 1,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
     }));
     starCloud.renderOrder = -4;
     cosmicGroup.add(starCloud);
 
-    /* ── Milky Way Disc (7 000 points, tilted flat disc) ── */
     const MW = 7000;
     const mwP = new Float32Array(MW * 3);
     const mwC = new Float32Array(MW * 3);
     for (let i = 0; i < MW; i++) {
-      const r     = 3 + Math.pow(Math.random(), 0.32) * 15;
+      const r     = 4 + Math.pow(Math.random(), 0.32) * 22;
       const theta = Math.random() * Math.PI * 2;
-      const height = (Math.random() - 0.5) * 0.28 / (1 + r * 0.07);
+      const height = (Math.random() - 0.5) * 0.4 / (1 + r * 0.05);
       mwP[i*3]   = r * Math.cos(theta);
       mwP[i*3+1] = height;
       mwP[i*3+2] = r * Math.sin(theta);
-      const density = Math.max(0, 1 - (r - 3) / 15);
+      const density = Math.max(0, 1 - (r - 4) / 22);
       const bright  = (0.04 + Math.random() * 0.32) * density;
       const ct = Math.random();
       let rc, gc, bc;
@@ -701,22 +475,16 @@
     mwGeo.setAttribute('position', new THREE.BufferAttribute(mwP, 3));
     mwGeo.setAttribute('color',    new THREE.BufferAttribute(mwC, 3));
     const milkyWayGrp = new THREE.Group();
-    milkyWayGrp.rotation.x = Math.PI / 3.0;   /* ~60° tilt */
+    milkyWayGrp.rotation.x = Math.PI / 3.0;
     milkyWayGrp.rotation.z = 0.52;
     cosmicGroup.add(milkyWayGrp);
     const mwPoints = new THREE.Points(mwGeo, new THREE.PointsMaterial({
-      vertexColors:   true,
-      size:           0.025,
-      transparent:    true,
-      opacity:        1,
-      depthWrite:     false,
-      blending:       THREE.AdditiveBlending,
-      sizeAttenuation: true,
+      vertexColors: true, size: 0.035, transparent: true, opacity: 1,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
     }));
     mwPoints.renderOrder = -3;
     milkyWayGrp.add(mwPoints);
 
-    /* ── Cosmic Dust (500 colorful particles) ── */
     const DUST = 500;
     const dPos = new Float32Array(DUST * 3);
     const dCol = new Float32Array(DUST * 3);
@@ -726,12 +494,12 @@
       [1.00, 0.72, 0.18], [0.32, 0.72, 1.00],
     ];
     for (let i = 0; i < DUST; i++) {
-      const r  = 3 + Math.random() * 9;
+      const r  = 5 + Math.random() * 14;
       const th = Math.random() * Math.PI * 2;
       const ph = Math.acos(2 * Math.random() - 1);
       dPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
       dPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
-      dPos[i*3+2] = r * Math.cos(ph) - 5;
+      dPos[i*3+2] = r * Math.cos(ph) - 6;
       const c = dPal[Math.floor(Math.random() * dPal.length)];
       const b = 0.06 + Math.random() * 0.22;
       dCol[i*3] = c[0]*b; dCol[i*3+1] = c[1]*b; dCol[i*3+2] = c[2]*b;
@@ -740,20 +508,14 @@
     dustGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
     dustGeo.setAttribute('color',    new THREE.BufferAttribute(dCol, 3));
     const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
-      vertexColors:   true,
-      size:           0.04,
-      transparent:    true,
-      opacity:        1,
-      depthWrite:     false,
-      blending:       THREE.AdditiveBlending,
-      sizeAttenuation: true,
+      vertexColors: true, size: 0.05, transparent: true, opacity: 1,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
     }));
     dustPoints.renderOrder = -3;
     cosmicGroup.add(dustPoints);
 
-    /* ═══════════════════════════════════════════
-       ASTEROIDS (orbiting outside the sphere)
-    ═══════════════════════════════════════════ */
+    /* ── Asteroid belt (sits naturally between Mars and Jupiter's
+       orbit radii below) ── */
     const asteroidVS = /* glsl */ `
       varying vec3 vN, vWP, vP;
       void main() {
@@ -780,28 +542,25 @@
         gl_FragColor = vec4(col, 1.0);
       }
     `;
-
-    /* [orbitRadius, tiltX, tiltZ, speed, startAngle, size] */
     const aOrbits = [
-      [1.55,  0.85,  0.30, 0.016, 0.5,  0.092],
-      [2.08, -0.48,  0.72, 0.011, 2.2,  0.120],
-      [2.62,  0.22, -0.58, 0.0075,3.9,  0.105],
-      [1.82,  1.18,  0.15, 0.014, 1.4,  0.072],
-      [3.10, -0.28,  0.84, 0.006, 3.6,  0.140],
-      [1.68,  0.62, -0.42, 0.019, 0.9,  0.082],
-      [2.35, -0.88,  0.52, 0.009, 2.8,  0.115],
-      [2.80,  0.38,  1.05, 0.008, 5.0,  0.095],
+      [2.05,  0.05,  0.30, 0.016, 0.5,  0.028],
+      [2.12, -0.03,  0.72, 0.011, 2.2,  0.034],
+      [2.22,  0.02, -0.58, 0.0075,3.9,  0.024],
+      [2.30,  0.06,  0.15, 0.014, 1.4,  0.020],
+      [2.38, -0.04,  0.84, 0.006, 3.6,  0.038],
+      [2.18,  0.03, -0.42, 0.019, 0.9,  0.022],
+      [2.45, -0.05,  0.52, 0.009, 2.8,  0.030],
+      [2.28,  0.04,  1.05, 0.008, 5.0,  0.026],
+      [2.15,  0.02, -0.20, 0.013, 1.9,  0.021],
+      [2.42,  0.03,  0.40, 0.010, 4.4,  0.032],
     ];
     const asteroidPivots = [];
     aOrbits.forEach(([orbitR, tX, tZ, spd, ang, sz]) => {
       const mat = new THREE.ShaderMaterial({
-        side: THREE.FrontSide,
-        uniforms: {},
-        vertexShader:   asteroidVS,
-        fragmentShader: asteroidFS,
+        side: THREE.FrontSide, uniforms: {},
+        vertexShader: asteroidVS, fragmentShader: asteroidFS,
       });
-      const geo = new THREE.SphereGeometry(sz, 7, 7);
-      /* Distort vertices to make lumpy rock shapes */
+      const geo = new THREE.SphereGeometry(sz, 6, 6);
       const pos = geo.attributes.position;
       for (let j = 0; j < pos.count; j++) {
         const x = pos.getX(j), y = pos.getY(j), z = pos.getZ(j);
@@ -811,10 +570,9 @@
       }
       pos.needsUpdate = true;
       geo.computeVertexNormals();
-      const mesh  = new THREE.Mesh(geo, mat);
-      mesh.renderOrder = 8;
-      mesh.position.x  = orbitR;
-      mesh.userData     = { rx: 0.003 + Math.random() * 0.006, rz: 0.002 + Math.random() * 0.005 };
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.x = orbitR;
+      mesh.userData = { rx: 0.003 + Math.random() * 0.006, rz: 0.002 + Math.random() * 0.005 };
       const pivot = new THREE.Group();
       pivot.rotation.x = tX;
       pivot.rotation.z = tZ;
@@ -825,34 +583,70 @@
     });
 
     /* ═══════════════════════════════════════════
-       HERO STAGES — each world floats free in open
-       space (no shell/frame around it): Star → Moon →
-       Sun → Earth. As you scroll into one it grows to
-       fill the screen, then recedes as the next arrives.
+       SHOOTING STARS
     ═══════════════════════════════════════════ */
-    const heroRoot = new THREE.Group();
-    heroRoot.rotation.x = -0.42;
-    heroRoot.rotation.z =  0.18;
-    scene.add(heroRoot);
+    const N_MET = 10;
+    const ACTIVE_DUR = 12.0;
+    const metColors = [
+      [1.00, 0.96, 0.82], [0.62, 0.88, 1.00], [0.42, 1.00, 0.92],
+      [1.00, 0.52, 0.88], [0.80, 0.52, 1.00], [1.00, 0.88, 0.42],
+      [0.72, 1.00, 0.58], [0.90, 0.78, 1.00],
+    ];
+    const tailPos = new Float32Array(N_MET * 6);
+    const tailCol = new Float32Array(N_MET * 6);
+    const headPos = new Float32Array(N_MET * 3);
+    const headCol = new Float32Array(N_MET * 3);
+    const metData = [];
+    for (let m = 0; m < N_MET; m++) {
+      const ang   = Math.random() * Math.PI * 2;
+      const slope = (Math.random() - 0.5) * 0.5 - 0.08;
+      let dx = Math.cos(ang), dy = Math.sin(ang) + slope, dz = (Math.random() - 0.5) * 0.12;
+      const dl = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      dx /= dl; dy /= dl; dz /= dl;
+      metData.push({
+        dx, dy, dz,
+        speed: 0.28 + Math.random() * 0.60,
+        trail: 5.5 + Math.random() * 7.5,
+        period: 15 + Math.random() * 22,
+        phase: Math.random() * 40,
+        sx: -dx * (8 + Math.random() * 6),
+        sy: -dy * (8 + Math.random() * 6) + (Math.random() - 0.5) * 3,
+        sz: -1 + Math.random() * 4,
+        bright: 0.65 + Math.random() * 0.35,
+        col: metColors[m % metColors.length],
+      });
+    }
+    const tailGeo = new THREE.BufferGeometry();
+    tailGeo.setAttribute('position', new THREE.BufferAttribute(tailPos, 3));
+    tailGeo.setAttribute('color',    new THREE.BufferAttribute(tailCol, 3));
+    const meteorLines = new THREE.LineSegments(tailGeo, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+    }));
+    meteorLines.renderOrder = 9;
+    cosmicGroup.add(meteorLines);
+    const headGeo = new THREE.BufferGeometry();
+    headGeo.setAttribute('position', new THREE.BufferAttribute(headPos, 3));
+    headGeo.setAttribute('color',    new THREE.BufferAttribute(headCol, 3));
+    const meteorHeads = new THREE.Points(headGeo, new THREE.PointsMaterial({
+      vertexColors: true, size: 0.20, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      sizeAttenuation: true,
+    }));
+    meteorHeads.renderOrder = 9;
+    cosmicGroup.add(meteorHeads);
 
-    /* Shared vertex shader for the two non-displaced auxiliary shells
-       (cloud layer, sun's outer glow) — these stay perfectly smooth
-       on purpose, they're thin atmosphere/glow, not solid ground    */
-    const heroVS_plain = /* glsl */ `
-      varying vec3 vN, vWP, vP;
-      void main() {
-        vN  = normalize(normalMatrix * normal);
-        vP  = position;
-        vWP = (modelMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `;
+    /* ═══════════════════════════════════════════
+       SOLAR SYSTEM — Sun at the center, 8 planets
+       each on their own orbiting pivot. Every solid
+       body displaces its own geometry along a noise
+       height field (real relief, not a texture trick)
+       and reconstructs the normal by finite
+       differences so lighting reacts to the bumps.
+    ═══════════════════════════════════════════ */
+    const solarGroup = new THREE.Group();
+    scene.add(solarGroup);
 
-    /* Every SOLID hero body below displaces its OWN vertices along a
-       noise-driven height field (real geometric relief, not just a
-       color trick) and reconstructs the normal by finite differences,
-       so lighting actually reacts to the bumps — this is what breaks
-       the "too smooth / too perfect" look a plain UV sphere has.    */
     const heroDisplaceMain = /* glsl */ `
       void main() {
         vec3 n0 = normalize(position);
@@ -874,166 +668,33 @@
         gl_Position = projectionMatrix * modelViewMatrix * vec4(dp0, 1.0);
       }
     `;
+    const plainMain = /* glsl */ `
+      void main() {
+        vN  = normalize(normalMatrix * normal);
+        vP  = position;
+        vWP = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    const heroVS_plain = /* glsl */ `varying vec3 vN, vWP, vP; ${plainMain}`;
 
     function heroMaterial(vs, fs, blending) {
       return new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: blending,
-        uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
-        vertexShader: vs,
-        fragmentShader: fs,
+        transparent: true, depthWrite: false, blending: blending || THREE.NormalBlending,
+        uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
+        vertexShader: vs, fragmentShader: fs,
       });
     }
 
-    /* ── Stage 1 · Ngôi Sao (generic star) ──
-       Real convection-cell displacement — an actual cellular (Voronoi)
-       mosaic of bumps, the same pattern real granulation photos show,
-       not a cloud-like fbm blob — under a limb-darkened photosphere
-       and blooming corona at the rim                                */
-    const starCellExpr = `p * 12.0 + vec3(uTime * 0.02, -uTime * 0.015, 0.0)`;
-    const starVS = /* glsl */ `
-      varying vec3 vN, vWP, vP;
-      uniform float uTime;
-      ${COMMON}
-      float heroHeight(vec3 p) {
-        vec2 cv = cellular3(${starCellExpr});
-        float cellH = smoothstep(0.0, 0.55, cv.x) - 0.45;
-        float n1 = fbm3(p * 4.0 + uTime * 0.15);
-        return cellH * 0.035 + (n1 - 0.5) * 0.03;
-      }
-      ${heroDisplaceMain}
-    `;
-    const starMat = heroMaterial(starVS, /* glsl */ `
-      varying vec3 vN, vWP, vP;
-      uniform float uTime, uFade;
-      ${COMMON}
-      void main() {
-        vec3 N  = normalize(vN);
-        vec3 V  = normalize(cameraPosition - vWP);
-        float NdotV = max(dot(N, V), 0.0);
-        float fr = pow(1.0 - NdotV, 1.8);
-        vec3 L1 = normalize(vec3(sin(uTime * 0.5) * 2.0, cos(uTime * 0.4) * 1.6, 2.0));
-        vec3 L2 = normalize(vec3(cos(uTime * 0.35) * 1.8, 0.8, sin(uTime * 0.3) * 2.0));
-        float sp = starburst(N, V, L1, 600.0) * 2.0 + starburst(N, V, L2, 700.0) * 1.4;
-
-        /* Same cellular mosaic as the geometry — bright cell faces,
-           darker intergranular lanes at the cell boundaries         */
-        vec3 p = vP;
-        vec2 cv = cellular3(${starCellExpr});
-        float cellBright = smoothstep(0.0, 0.55, cv.x);
-        float gran = mix(0.30, 1.05, cellBright) * (0.85 + cv.y * 0.3);
-
-        /* Limb darkening: photosphere dims toward the edge, then the
-           corona (fr term below) blooms back up right at the rim */
-        float limb = mix(0.62, 1.25, pow(NdotV, 0.55));
-        vec3 hot  = vec3(0.72, 0.86, 1.0);
-        vec3 cool = vec3(0.30, 0.48, 0.82);
-        vec3 core = mix(cool, hot, clamp(gran, 0.0, 1.0)) * 1.85 * limb;
-
-        vec3 col  = core + vec3(0.85, 0.92, 1.0) * fr * 1.5 + vec3(1.0, 1.0, 0.95) * sp;
-        gl_FragColor = vec4(col, clamp((0.55 + fr * 0.5 + sp * 0.4) * uFade, 0.0, 1.0));
-      }
-    `, THREE.AdditiveBlending);
-    const starGroup = new THREE.Group();
-    starGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 96, 96), starMat));
-
-    /* ── Stage 2 · Mặt Trăng (Moon) ──
-       6 real impact craters (actual dented + rimmed geometry, not a
-       color mask) plus broad maria basins and fine surface roughness —
-       the fragment shader re-evaluates the SAME crater math so the
-       shading lines up exactly with the dents                       */
-    const moonCraterCalls = /* glsl */ `
-      craterBowl(n, normalize(vec3( 0.62, 0.28, 0.73)), 0.36, 1.0) +
-      craterBowl(n, normalize(vec3(-0.40, 0.70,-0.22)), 0.24, 0.85) +
-      craterBowl(n, normalize(vec3( 0.10,-0.82, 0.42)), 0.30, 0.9) +
-      craterBowl(n, normalize(vec3(-0.72,-0.18,-0.52)), 0.20, 0.7) +
-      craterBowl(n, normalize(vec3( 0.80,-0.12,-0.30)), 0.16, 0.6) +
-      craterBowl(n, normalize(vec3(-0.22, 0.52, 0.86)), 0.22, 0.75)
-    `;
-    /* A whole scattered FIELD of small craters (real moons are riddled
-       with these, not just a handful of big ones) — placed at random
-       Voronoi cell centers so they never look grid-like, evaluated
-       identically in the vertex (real dent) and fragment (shading)   */
-    const moonSmallCraterCalc = /* glsl */ `
-      vec2 scV = cellular3(p * 6.5);
-      float scOn   = step(0.55, scV.y);
-      float scSize = 0.30 + scV.y * 0.35;
-      float scBowl = smoothstep(scSize, 0.0, scV.x);
-      float scRim  = exp(-pow((scV.x - scSize * 1.15) * 14.0, 2.0));
-      float smallCraters = scOn * (scRim * 0.35 - scBowl);
-    `;
-    const moonVS = /* glsl */ `
-      varying vec3 vN, vWP, vP;
-      ${COMMON}
-      float heroHeight(vec3 p) {
-        vec3 n = normalize(p);
-        float rough = (fbm3(p * 9.0) - 0.5) * 0.08 + (fbm3(p * 22.0) - 0.5) * 0.04;
-        float maria = (fbm3(p * 1.7 + vec3(2.0, 0.5, 0.0)) - 0.5) * 0.5;
-        float craters = ${moonCraterCalls};
-        ${moonSmallCraterCalc}
-        return (rough + maria) * 0.05 + craters * 0.035 + smallCraters * 0.014;
-      }
-      ${heroDisplaceMain}
-    `;
-    const moonMat = heroMaterial(moonVS, /* glsl */ `
-      varying vec3 vN, vWP, vP;
-      uniform float uTime, uFade;
-      ${COMMON}
-      void main() {
-        vec3 N = normalize(vN);
-        vec3 V = normalize(cameraPosition - vWP);
-        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
-        float lambert = max(dot(N, L), 0.0);
-        vec3 n = normalize(vP);
-        vec3 p = vP;
-
-        /* Large low-frequency dark "seas" (maria) under highlands —
-           real maria lean brownish-grey (basalt), highlands warmer tan */
-        float maria = smoothstep(0.36, 0.58, fbm3(vP * 1.7 + vec3(2.0, 0.5, 0.0)));
-        vec3 highlandCol = vec3(0.62, 0.58, 0.52);
-        vec3 mariaCol    = vec3(0.24, 0.23, 0.24);
-        vec3 base = mix(highlandCol, mariaCol, maria);
-
-        /* Same 6 big craters as the geometry */
-        float craters = ${moonCraterCalls};
-        base *= 1.0 - clamp(-craters, 0.0, 1.0) * 0.45;
-        base += clamp(craters, 0.0, 1.0) * 0.10;
-
-        /* Same scattered small-crater field as the geometry */
-        ${moonSmallCraterCalc}
-        base *= 1.0 - clamp(-smallCraters, 0.0, 1.0) * 0.35;
-        base += clamp(smallCraters, 0.0, 1.0) * 0.07;
-
-        float fine = fbm3(vP * 34.0) - 0.5;
-        base *= 0.90 + fine * 0.20;
-
-        vec3 cell = floor(vP * 26.0);
-        float glint = step(0.965, h3(cell)) * pow(max(0.0, lambert), 0.4);
-        base += glint * 0.35;
-
-        vec3 lit = base * (0.12 + lambert * 1.15);
-        float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-        lit += vec3(0.55, 0.58, 0.68) * fr * 0.14;
-        lit += vec3(0.10, 0.13, 0.20) * (1.0 - lambert) * 0.10; /* faint earthshine */
-        gl_FragColor = vec4(lit, uFade);
-      }
-    `, THREE.NormalBlending);
-    const moonGroup = new THREE.Group();
-    moonGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.46, 96, 96), moonMat));
-
-    /* ── Stage 3 · Mặt Trời (Sun) ──
-       Real cellular granulation displacement (same Voronoi mosaic
-       technique as the star, tuned finer/faster), darker sunspot
-       clusters, and bright limb faculae                             */
-    const sunCellExpr = `p * 15.0 + vec3(uTime * 0.016, uTime * 0.011, 0.0)`;
+    /* ── Sun ── real cellular-granulation plasma surface ── */
+    const sunCellExpr = `p * 10.0 + vec3(uTime * 0.014, uTime * 0.010, 0.0)`;
     const sunVS = /* glsl */ `
       varying vec3 vN, vWP, vP;
       uniform float uTime;
       ${COMMON}
       float heroHeight(vec3 p) {
         vec2 cv = cellular3(${sunCellExpr});
-        return (smoothstep(0.0, 0.5, cv.x) - 0.45) * 0.022;
+        return (smoothstep(0.0, 0.5, cv.x) - 0.45) * 0.045;
       }
       ${heroDisplaceMain}
     `;
@@ -1046,29 +707,23 @@
         float NdotV = max(dot(vN, V), 0.0);
         float fr = pow(1.0 - NdotV, 1.5);
         float pulse = 0.92 + 0.08 * sin(uTime * 2.1);
-
-        /* Same cellular mosaic as the geometry — bright granule faces,
-           darker intergranular lanes                                 */
         vec3 p = vP;
         vec2 cv = cellular3(${sunCellExpr});
         float cellBright = smoothstep(0.0, 0.5, cv.x);
         float gran = mix(0.45, 1.05, cellBright) * (0.85 + cv.y * 0.3);
-
-        /* Sunspot clusters: rarer, darker, low-frequency patches */
-        float spotN = fbm3(vP * 2.4 + vec3(4.0, 1.0, 0.0));
+        float spotN = fbm3(vP * 1.6 + vec3(4.0, 1.0, 0.0));
         float spot  = smoothstep(0.58, 0.68, spotN);
-
         vec3 col = mix(vec3(1.0, 0.95, 0.7) * 2.2, vec3(1.0, 0.65, 0.1) * 3.5, fr * 0.7);
-        col *= mix(1.0, 0.45, spot * (1.0 - fr));      /* sunspots dim the disk, not the rim */
+        col *= mix(1.0, 0.45, spot * (1.0 - fr));
         col *= (0.70 + 0.40 * gran) * pulse;
-        col += vec3(1.0, 0.85, 0.5) * pow(fr, 0.6) * 0.6; /* bright limb faculae */
+        col += vec3(1.0, 0.85, 0.5) * pow(fr, 0.6) * 0.6;
         gl_FragColor = vec4(col, uFade);
       }
     `, THREE.AdditiveBlending);
     const sunHaloMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
-      uniforms: { uTime: { value: 0 }, uFade: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
       vertexShader: /* glsl */ `
         varying vec3 vN;
         void main() {
@@ -1087,24 +742,122 @@
       `,
     });
     const sunGroup = new THREE.Group();
-    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.40, 72, 72), sunCoreMat));
-    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.60, 56, 56), sunHaloMat));
+    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.62, 96, 96), sunCoreMat));
+    sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.90, 56, 56), sunHaloMat));
+    solarGroup.add(sunGroup);
 
-    /* ── Stage 4 · Trái Đất (Earth) ──
-       Real (if subtle) mountain relief — raised only over land, using
-       the identical land mask the color shader uses so terrain and
-       coastline always agree — plus twinkling city lights on the
-       night side and clouds that tint the ground beneath them darker */
+    /* ── Shared "rocky, cratered" body — Mercury & Mars ── */
+    const rockyCraterCalls = /* glsl */ `
+      craterBowl(n, normalize(vec3( 0.55, 0.35, 0.70)), 0.34, 1.0) +
+      craterBowl(n, normalize(vec3(-0.45, 0.60,-0.30)), 0.22, 0.8) +
+      craterBowl(n, normalize(vec3( 0.15,-0.75, 0.45)), 0.28, 0.85) +
+      craterBowl(n, normalize(vec3(-0.65,-0.25,-0.55)), 0.18, 0.65) +
+      craterBowl(n, normalize(vec3( 0.75,-0.15,-0.35)), 0.15, 0.55)
+    `;
+    const rockySmallCalc = /* glsl */ `
+      vec2 scV = cellular3(p * 7.0);
+      float scOn   = step(0.5, scV.y);
+      float scSize = 0.28 + scV.y * 0.30;
+      float scBowl = smoothstep(scSize, 0.0, scV.x);
+      float scRim  = exp(-pow((scV.x - scSize * 1.15) * 14.0, 2.0));
+      float small  = scOn * (scRim * 0.30 - scBowl);
+    `;
+    const rockyVS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      ${COMMON}
+      float heroHeight(vec3 p) {
+        vec3 n = normalize(p);
+        float rough = (fbm3(p * 10.0) - 0.5) * 0.08 + (fbm3(p * 24.0) - 0.5) * 0.04;
+        float craters = ${rockyCraterCalls};
+        ${rockySmallCalc}
+        return rough * 0.05 + craters * 0.030 + small * 0.012;
+      }
+      ${heroDisplaceMain}
+    `;
+    const rockyFS = /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade, uPolar;
+      uniform vec3 uBaseLow, uBaseHigh;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 V = normalize(cameraPosition - vWP);
+        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+        float lambert = max(dot(N, L), 0.0);
+        vec3 n = normalize(vP);
+        vec3 p = vP;
+
+        float alt = fbm3(vP * 4.0) * 0.5 + 0.5;
+        vec3 base = mix(uBaseLow, uBaseHigh, alt);
+
+        float craters = ${rockyCraterCalls};
+        base *= 1.0 - clamp(-craters, 0.0, 1.0) * 0.40;
+        base += clamp(craters, 0.0, 1.0) * 0.08;
+
+        ${rockySmallCalc}
+        base *= 1.0 - clamp(-small, 0.0, 1.0) * 0.30;
+        base += clamp(small, 0.0, 1.0) * 0.06;
+
+        float polarCap = smoothstep(0.80, 0.94, abs(vP.y)) * uPolar;
+        base = mix(base, vec3(0.92, 0.94, 0.98), polarCap);
+
+        float fine = fbm3(vP * 30.0) - 0.5;
+        base *= 0.92 + fine * 0.16;
+
+        vec3 lit = base * (0.10 + lambert * 1.15);
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+        lit += vec3(0.55, 0.53, 0.55) * fr * 0.12;
+        gl_FragColor = vec4(lit, uFade);
+      }
+    `;
+    function makeRockyMat(baseLow, baseHigh, polar) {
+      return new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 }, uFade: { value: 1 }, uPolar: { value: polar },
+          uBaseLow:  { value: new THREE.Vector3(...baseLow) },
+          uBaseHigh: { value: new THREE.Vector3(...baseHigh) },
+        },
+        vertexShader: rockyVS, fragmentShader: rockyFS,
+      });
+    }
+    const mercuryMat = makeRockyMat([0.30, 0.27, 0.24], [0.58, 0.52, 0.46], 0.0);
+    const marsMat    = makeRockyMat([0.34, 0.13, 0.07], [0.68, 0.34, 0.19], 1.0);
+
+    /* ── Venus — thick smooth swirling cloud deck, no visible surface ── */
+    const venusMat = heroMaterial(heroVS_plain, /* glsl */ `
+      varying vec3 vN, vWP, vP;
+      uniform float uTime, uFade;
+      ${COMMON}
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 V = normalize(cameraPosition - vWP);
+        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+        float lambert = max(dot(N, L), 0.0);
+        vec3 p = vP;
+        vec3 warp = vec3(
+          fbm3(p * 2.0 + vec3(1.0, 0.0, 0.0)),
+          fbm3(p * 2.0 + vec3(0.0, 1.0, 0.0)),
+          fbm3(p * 2.0 + vec3(0.0, 0.0, 1.0))
+        ) - 0.5;
+        vec3 wp = p + warp * 1.1;
+        float bands = fbm3(wp * 3.0 + vec3(uTime * 0.01, 0.0, 0.0)) * 0.6
+                    + fbm3(wp * 7.0 - vec3(0.0, uTime * 0.008, 0.0)) * 0.4;
+        vec3 base = mix(vec3(0.76, 0.66, 0.40), vec3(0.95, 0.90, 0.70), bands);
+        vec3 lit = base * (0.30 + lambert * 0.80);
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+        lit += vec3(1.0, 0.92, 0.68) * fr * 0.40;
+        gl_FragColor = vec4(lit, uFade);
+      }
+    `, THREE.NormalBlending);
+
+    /* ── Earth — kept from the realism pass: real mountains on land,
+       swirling domain-warped clouds, city lights, biome-split ground ── */
     const earthLandCalc = /* glsl */ `
       float landBase = fbm3(p * 2.6 + vec3(3.1, 1.7, 0.0));
       float landEdge = fbm3(p * 7.5 + vec3(1.4, 0.2, 2.6)) * 0.16;
       float land = smoothstep(0.46, 0.52, landBase + landEdge);
     `;
-    /* Real satellite photos show clouds in swirling bands and spirals,
-       not blobby patches — feeding a coarse noise field back in as a
-       spatial offset ("domain warping") before the fine cloud noise
-       bends it into that swirl. Shared so the ground's cloud-shadow
-       lines up with the actual cloud shapes above it.               */
     const earthCloudCalc = /* glsl */ `
       vec3 warp = vec3(
         fbm3(p * 3.0 + vec3(1.0, 0.0, 0.0)),
@@ -1122,8 +875,8 @@
       float heroHeight(vec3 p) {
         ${earthLandCalc}
         float terrain = fbm3(p * 6.0 + vec3(5.0, 2.0, 1.0)) * 0.6 + fbm3(p * 14.0) * 0.4;
-        float mountains   = (terrain - 0.5) * land;
-        float oceanFloor  = (fbm3(p * 3.0) - 0.5) * (1.0 - land);
+        float mountains  = (terrain - 0.5) * land;
+        float oceanFloor = (fbm3(p * 3.0) - 0.5) * (1.0 - land);
         return mountains * 0.028 + oceanFloor * 0.006;
       }
       ${heroDisplaceMain}
@@ -1137,42 +890,27 @@
         vec3 V = normalize(cameraPosition - vWP);
         vec3 L = normalize(vec3(1.2, 0.5, 1.3));
         float lambert = max(dot(N, L), 0.0);
-
         vec3 p = vP;
         ${earthLandCalc}
-
         vec3 ocean = mix(vec3(0.02, 0.10, 0.32), vec3(0.04, 0.30, 0.58), fbm3(vP * 6.0) * 0.5 + 0.5);
-
-        /* Land splits into distinct biome bands (forest green / desert
-           tan) instead of one uniform brown-green mush — the single
-           biggest thing that makes continents read as "real" rather
-           than a painted blob                                       */
         float biome = fbm3(vP * 1.3 + vec3(7.0, 3.0, 1.0));
         vec3 forestCol = vec3(0.13, 0.30, 0.11);
         vec3 desertCol = vec3(0.62, 0.48, 0.26);
         vec3 groundMix = mix(forestCol, desertCol, smoothstep(0.34, 0.66, biome));
         vec3 groundFine = mix(vec3(0.85, 0.80, 1.0), vec3(1.15, 1.05, 0.85), fbm3(vP * 6.5) * 0.5 + 0.5);
         vec3 ground = groundMix * groundFine;
-
         vec3 surf = mix(ocean, ground, land);
         float polar = smoothstep(0.74, 0.94, abs(vP.y));
         surf = mix(surf, vec3(0.90, 0.93, 0.97), polar);
-
-        /* Cloud shadow: identical swirl the cloud layer draws above,
-           darkening the ground a touch wherever it sits             */
         ${earthCloudCalc}
         surf *= 1.0 - cloud * 0.22;
-
         float spec = pow(max(dot(reflect(-L, N), V), 0.0), 40.0) * (1.0 - land) * 0.5;
         vec3 lit = surf * (0.10 + lambert * 1.05) + vec3(1.0) * spec;
-
-        /* City lights: small twinkling specks, land + night side only */
         float night = 1.0 - smoothstep(0.0, 0.16, lambert);
         vec3 cell = floor(vP * 60.0);
         float city = step(0.978, h3(cell)) * step(0.5, land) * night;
         float twinkle = 0.6 + 0.4 * sin(uTime * 3.0 + h3(cell) * 30.0);
         lit += vec3(1.0, 0.85, 0.5) * city * twinkle * 0.9;
-
         lit += vec3(0.02, 0.03, 0.06) * (1.0 - lambert) * 0.6;
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.4);
         lit += vec3(0.30, 0.55, 1.0) * fr * 0.5;
@@ -1192,91 +930,171 @@
         gl_FragColor = vec4(vec3(1.0), cloud * (0.35 + lambert * 0.5) * uFade);
       }
     `, THREE.NormalBlending);
-    const earthGroup = new THREE.Group();
-    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.48, 96, 96), earthMat));
-    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.495, 64, 64), cloudMat));
 
-    [starGroup, moonGroup, sunGroup, earthGroup].forEach(g => heroRoot.add(g));
+    /* ── Gas giants: Jupiter, Saturn, Uranus, Neptune — shared
+       lighting shell, each with its own band/spot expression ── */
+    function gasGiantMat(colorExpr) {
+      return heroMaterial(heroVS_plain, /* glsl */ `
+        varying vec3 vN, vWP, vP;
+        uniform float uTime, uFade;
+        ${COMMON}
+        void main() {
+          vec3 N = normalize(vN);
+          vec3 V = normalize(cameraPosition - vWP);
+          vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+          float lambert = max(dot(N, L), 0.0);
+          ${colorExpr}
+          vec3 lit = col * (0.20 + lambert * 0.95);
+          float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+          lit += vec3(0.9, 0.9, 1.0) * fr * 0.18;
+          gl_FragColor = vec4(lit, uFade);
+        }
+      `, THREE.NormalBlending);
+    }
+    const jupiterMat = gasGiantMat(/* glsl */ `
+      float lat = vP.y / (length(vP) + 0.0001);
+      float warp = (fbm3(vP * 1.6 + vec3(5.0, 2.0, 0.0)) - 0.5) * 0.6;
+      float bv = lat * 5.0 + warp;
+      float b1 = sin(bv);
+      float b2 = sin(bv * 2.3 + 1.0);
+      vec3 col = mix(vec3(0.70, 0.54, 0.38), vec3(0.90, 0.78, 0.60), smoothstep(-0.3, 0.3, b1));
+      col = mix(col, vec3(0.52, 0.36, 0.24), smoothstep(0.4, 0.7, b2) * 0.5);
+      vec3 spotCenter = normalize(vec3(0.3, -0.15, 0.94));
+      float spotD = length(normalize(vP) - spotCenter) / 0.30;
+      float spot = smoothstep(1.0, 0.0, spotD);
+      col = mix(col, vec3(0.70, 0.30, 0.20), spot * 0.85);
+    `);
+    const saturnMat = gasGiantMat(/* glsl */ `
+      float lat = vP.y / (length(vP) + 0.0001);
+      float warp = (fbm3(vP * 1.4 + vec3(3.0, 1.0, 0.0)) - 0.5) * 0.4;
+      float bv = lat * 6.0 + warp;
+      vec3 col = mix(vec3(0.80, 0.72, 0.52), vec3(0.94, 0.88, 0.70), smoothstep(-0.4, 0.4, sin(bv)));
+      col = mix(col, vec3(0.70, 0.60, 0.42), smoothstep(0.5, 0.8, sin(bv * 1.7)) * 0.3);
+    `);
+    const uranusMat = gasGiantMat(/* glsl */ `
+      float lat = vP.y / (length(vP) + 0.0001);
+      float bv = lat * 4.0 + (fbm3(vP * 1.2) - 0.5) * 0.3;
+      vec3 col = mix(vec3(0.52, 0.83, 0.84), vec3(0.66, 0.92, 0.90), smoothstep(-0.5, 0.5, sin(bv)));
+    `);
+    const neptuneMat = gasGiantMat(/* glsl */ `
+      float lat = vP.y / (length(vP) + 0.0001);
+      float warp = (fbm3(vP * 1.5 + vec3(2.0, 4.0, 0.0)) - 0.5) * 0.5;
+      float bv = lat * 5.0 + warp;
+      vec3 col = mix(vec3(0.15, 0.27, 0.60), vec3(0.28, 0.42, 0.78), smoothstep(-0.4, 0.4, sin(bv)));
+      vec3 spotCenter = normalize(vec3(-0.2, 0.3, 0.92));
+      float spotD = length(normalize(vP) - spotCenter) / 0.20;
+      float spot = smoothstep(1.0, 0.0, spotD);
+      col = mix(col, vec3(0.07, 0.13, 0.28), spot * 0.7);
+    `);
 
-    const heroStages = [
-      { group: starGroup,  mats: [starMat] },
-      { group: moonGroup,  mats: [moonMat] },
-      { group: sunGroup,   mats: [sunCoreMat, sunHaloMat] },
-      { group: earthGroup, mats: [earthMat, cloudMat] },
-    ];
-
-    /* Each world sits slightly off-axis from the last, so approaching
-       one feels like turning a corner deeper into a maze rather than
-       staring straight down one endless corridor — the offset resolves
-       back to dead-center exactly as the world becomes fully present */
-    const HERO_OFFSETS = [
-      { x:  0.00, y:  0.00 },
-      { x:  0.55, y: -0.30 },
-      { x: -0.45, y:  0.35 },
-      { x:  0.30, y:  0.22 },
-    ];
-
-    /* ═══════════════════════════════════════════
-       SHOOTING STARS (ultra slow-motion)
-       10 meteors, each travels for 12 s with long
-       trails. Speed is very low so the glowing
-       trail is fully visible.
-    ═══════════════════════════════════════════ */
-    const N_MET = 10;
-    const ACTIVE_DUR = 12.0; /* seconds each meteor is visible */
-
-    const metColors = [
-      [1.00, 0.96, 0.82], [0.62, 0.88, 1.00], [0.42, 1.00, 0.92],
-      [1.00, 0.52, 0.88], [0.80, 0.52, 1.00], [1.00, 0.88, 0.42],
-      [0.72, 1.00, 0.58], [0.90, 0.78, 1.00],
-    ];
-
-    const tailPos = new Float32Array(N_MET * 6);
-    const tailCol = new Float32Array(N_MET * 6);
-    const headPos = new Float32Array(N_MET * 3);
-    const headCol = new Float32Array(N_MET * 3);
-
-    const metData = [];
-    for (let m = 0; m < N_MET; m++) {
-      const ang   = Math.random() * Math.PI * 2;
-      const slope = (Math.random() - 0.5) * 0.5 - 0.08;
-      let dx = Math.cos(ang), dy = Math.sin(ang) + slope, dz = (Math.random() - 0.5) * 0.12;
-      const dl = Math.sqrt(dx*dx + dy*dy + dz*dz);
-      dx /= dl; dy /= dl; dz /= dl;
-      metData.push({
-        dx, dy, dz,
-        speed:  0.28 + Math.random() * 0.60,    /* ultra slow */
-        trail:  5.5  + Math.random() * 7.5,     /* long trail */
-        period: 15   + Math.random() * 22,      /* rare interval */
-        phase:  Math.random() * 40,
-        sx: -dx * (6 + Math.random() * 5),
-        sy: -dy * (6 + Math.random() * 5) + (Math.random() - 0.5) * 3,
-        sz: -1 + Math.random() * 4,
-        bright: 0.65 + Math.random() * 0.35,
-        col:    metColors[m % metColors.length],
+    /* ── Saturn's ring ── flat disc, radius-based procedural bands ── */
+    function makeRing(innerR, outerR, baseCol, opac) {
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.NormalBlending,
+        uniforms: {
+          uInner: { value: innerR }, uOuter: { value: outerR },
+          uFade: { value: 1 }, uCol: { value: new THREE.Vector3(...baseCol) },
+          uOpac: { value: opac },
+        },
+        vertexShader: /* glsl */ `
+          varying vec3 vP;
+          void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+        `,
+        fragmentShader: /* glsl */ `
+          varying vec3 vP;
+          uniform float uInner, uOuter, uFade, uOpac;
+          uniform vec3 uCol;
+          ${COMMON}
+          void main() {
+            float r = length(vP.xy);
+            float t = clamp((r - uInner) / (uOuter - uInner), 0.0, 1.0);
+            float band = fbm(vec2(t * 24.0, 0.0));
+            float edge = smoothstep(0.0, 0.04, t) * smoothstep(1.0, 0.94, t);
+            vec3 col = mix(uCol * 0.7, uCol * 1.25, band);
+            gl_FragColor = vec4(col, edge * (0.30 + band * 0.5) * uOpac * uFade);
+          }
+        `,
       });
+      const geo = new THREE.RingGeometry(innerR, outerR, 96);
+      const mesh = new THREE.Mesh(geo, mat);
+      return mesh;
     }
 
-    const tailGeo = new THREE.BufferGeometry();
-    tailGeo.setAttribute('position', new THREE.BufferAttribute(tailPos, 3));
-    tailGeo.setAttribute('color',    new THREE.BufferAttribute(tailCol, 3));
-    const meteorLines = new THREE.LineSegments(tailGeo, new THREE.LineBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 1,
-      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
-    }));
-    meteorLines.renderOrder = 9;
-    cosmicGroup.add(meteorLines);
+    /* ── Orbit guide rings (thin, faint) ── */
+    const orbitLineMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: {},
+      vertexShader: `void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `void main(){ gl_FragColor = vec4(0.65, 0.68, 0.85, 0.22); }`,
+    });
 
-    const headGeo = new THREE.BufferGeometry();
-    headGeo.setAttribute('position', new THREE.BufferAttribute(headPos, 3));
-    headGeo.setAttribute('color',    new THREE.BufferAttribute(headCol, 3));
-    const meteorHeads = new THREE.Points(headGeo, new THREE.PointsMaterial({
-      vertexColors: true, size: 0.20, transparent: true, opacity: 1,
-      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
-      sizeAttenuation: true,
-    }));
-    meteorHeads.renderOrder = 9;
-    cosmicGroup.add(meteorHeads);
+    /* ── Assemble the 8 planets ──
+       [name, orbitR, size, speed, tiltX, tiltZ, startAngle, mat, extras] */
+    const planetDefs = [
+      ['Mercury', 0.95, 0.050, 4.74, 0.02, 0.01, 0.0, mercuryMat, null],
+      ['Venus',   1.25, 0.078, 3.50, 0.05, 0.03, 1.0, venusMat,   null],
+      ['Earth',   1.60, 0.082, 2.98, 0.00, 0.00, 2.1, earthMat,   { cloud: true }],
+      ['Mars',    1.95, 0.062, 2.41, 0.04, 0.02, 3.5, marsMat,    null],
+      ['Jupiter', 2.85, 0.190, 1.31, 0.02, 0.01, 0.5, jupiterMat, null],
+      ['Saturn',  3.65, 0.160, 0.97, 0.04, 0.02, 2.5, saturnMat,  { ring: true }],
+      ['Uranus',  4.30, 0.115, 0.68, 0.01, 0.01, 1.5, uranusMat,  null],
+      ['Neptune', 4.90, 0.108, 0.54, 0.02, 0.01, 3.8, neptuneMat, null],
+    ];
+
+    const orbitGroups = [];
+    const ringMats = [];
+    const labelTargets = [{ name: 'Sun', obj: sunGroup, sun: true }];
+
+    planetDefs.forEach(([name, orbitR, size, speed, tX, tZ, startAngle, mat, extra]) => {
+      const op = new THREE.Group();
+      op.rotation.x = tX;
+      op.rotation.z = tZ;
+      solarGroup.add(op);
+
+      const oring = new THREE.Mesh(new THREE.TorusGeometry(orbitR, 0.003, 6, 128), orbitLineMat);
+      oring.rotation.x = Math.PI / 2;
+      op.add(oring);
+
+      const piv = new THREE.Group();
+      piv.rotation.y = startAngle;
+      op.add(piv);
+
+      const planetGroup = new THREE.Group();
+      planetGroup.position.x = orbitR;
+      piv.add(planetGroup);
+
+      const segs = size > 0.14 ? 64 : 80;
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, segs, segs), mat);
+      mesh.userData.spin = 0.002 + Math.random() * 0.003;
+      planetGroup.add(mesh);
+
+      if (extra && extra.cloud) {
+        planetGroup.add(new THREE.Mesh(new THREE.SphereGeometry(size * 1.03, 64, 64), cloudMat));
+      }
+      if (extra && extra.ring) {
+        const ring = makeRing(size * 1.5, size * 2.5, [0.75, 0.68, 0.52], 0.85);
+        ring.rotation.x = Math.PI / 2.6;
+        planetGroup.add(ring);
+        ringMats.push(ring.material);
+      }
+
+      orbitGroups.push({ piv, speed, mesh });
+      labelTargets.push({ name, obj: planetGroup, sun: false });
+    });
+
+    /* ═══════════════════════════════════════════
+       FLOATING NAME LABELS (screen-projected HTML)
+    ═══════════════════════════════════════════ */
+    const labelsRoot = document.getElementById('labels');
+    const labelEls = labelTargets.map(({ name, sun }) => {
+      const el = document.createElement('div');
+      el.className = 'planetLabel' + (sun ? ' sunLabel' : '');
+      el.textContent = name;
+      labelsRoot.appendChild(el);
+      return el;
+    });
+    const labelVec = new THREE.Vector3();
 
     /* ═══════════════════════════════════════════
        AMBIENT SOUND (synthesised, opt-in)
@@ -1285,8 +1103,6 @@
     function initAudio() {
       const ctx    = new (window.AudioContext || window.webkitAudioContext)();
       const master = ctx.createGain();
-      /* A soft limiter ahead of the destination — headroom so the
-         louder master gain below can't crackle/clip on the mix       */
       const limiter = ctx.createDynamicsCompressor();
       limiter.threshold.value = -8;
       limiter.knee.value      = 18;
@@ -1296,16 +1112,14 @@
       master.connect(limiter);
       limiter.connect(ctx.destination);
       master.gain.value = 0;
-      master.gain.setTargetAtTime(0.32, ctx.currentTime, 2.0); /* ~3x louder than before */
+      master.gain.setTargetAtTime(0.32, ctx.currentTime, 2.0);
 
-      /* Drone oscillators */
       [[42,'sine',0.42],[42.85,'sine',0.17],[84.3,'sine',0.12],
        [126,'triangle',0.055],[210,'triangle',0.03]].forEach(([f,t,g]) => {
         const o = ctx.createOscillator(), gn = ctx.createGain();
         o.type = t; o.frequency.value = f; gn.gain.value = g;
         o.connect(gn); gn.connect(master); o.start();
       });
-      /* Band-pass noise */
       const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
       const d   = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -1319,7 +1133,6 @@
       lfo.type = 'sine'; lfo.frequency.value = 0.055;
       const lg = ctx.createGain(); lg.gain.value = 75;
       lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
-      /* Crystal harmonics */
       [528, 531.5, 524.8, 792, 1056].forEach((f, i) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.type = 'sine'; o.frequency.value = f;
@@ -1328,7 +1141,6 @@
       });
       return ctx;
     }
-
     const sndBtn = document.getElementById('sndBtn');
     sndBtn.addEventListener('click', () => {
       if (!audioCtx) {
@@ -1342,378 +1154,116 @@
     });
 
     /* ═══════════════════════════════════════════
-       STAGE CONTENT + INFO PANEL
-       Panel always previews the world being travelled
-       TOWARD — its "clarity" resolves first, then the
-       object itself is allowed to appear (see loop below).
-    ═══════════════════════════════════════════ */
-    const STAGES = [
-      {
-        title: 'Ngôi Sao', sub: 'Star · ánh sáng nguyên thủy',
-        desc: 'Một quả cầu plasma khổng lồ, tự phát sáng nhờ phản ứng nhiệt hạch diễn ra trong lõi.',
-        facts: [
-          'Nhiệt độ lõi: khoảng 15 triệu °C',
-          'Thành phần chính: hydro và heli',
-          'Ánh sáng đến từ phản ứng nhiệt hạch',
-          'Vòng đời có thể kéo dài hàng tỷ năm',
-        ],
-      },
-      {
-        title: 'Mặt Trăng', sub: 'Moon · vệ tinh của Trái Đất',
-        desc: 'Vệ tinh tự nhiên duy nhất của Trái Đất, bề mặt phủ đầy hố va chạm cổ đại.',
-        facts: [
-          'Khoảng cách trung bình: 384.400 km',
-          'Đường kính: 3.474 km',
-          'Không có khí quyển đáng kể',
-          'Luôn hướng một mặt về Trái Đất (khóa thủy triều)',
-        ],
-      },
-      {
-        title: 'Mặt Trời', sub: 'Sun · trung tâm hệ Mặt Trời',
-        desc: 'Ngôi sao gần Trái Đất nhất, cung cấp gần như toàn bộ năng lượng cho sự sống.',
-        facts: [
-          'Nhiệt độ bề mặt: khoảng 5.500 °C',
-          'Đường kính: 1,39 triệu km',
-          'Tuổi: khoảng 4,6 tỷ năm',
-          'Chiếm hơn 99% khối lượng hệ Mặt Trời',
-        ],
-      },
-      {
-        title: 'Trái Đất', sub: 'Earth · hành tinh xanh',
-        desc: 'Hành tinh duy nhất được biết đến có sự sống, với bề mặt phần lớn là đại dương.',
-        facts: [
-          'Khoảng cách tới Mặt Trời: ~150 triệu km',
-          'Đường kính: 12.742 km',
-          '71% bề mặt được bao phủ bởi nước',
-          'Tự quay: 24 giờ · quỹ đạo: 365,25 ngày',
-        ],
-      },
-    ];
-    const N = STAGES.length;
-
-    /* Per-world accent (r,g,b) — the panel's border/glow/track
-       lerp continuously between these as the journey progresses */
-    const ACCENTS = [
-      [170, 150, 255], /* star  — violet */
-      [150, 190, 255], /* moon  — slate-blue */
-      [255, 170, 90],  /* sun   — amber */
-      [110, 220, 200], /* earth — teal */
-    ];
-
-    const ipCur   = document.getElementById('ipCur');
-    const ipTitle = document.getElementById('ipTitle');
-    const ipSub   = document.getElementById('ipSub');
-    const ipDesc  = document.getElementById('ipDesc');
-    const ipFacts = document.getElementById('ipFacts');
-    const ipTrackFill = document.getElementById('ipTrackFill');
-    const infoPanel = document.getElementById('infoPanel');
-    const dots    = document.querySelectorAll('#infoPanel .dot');
-    const navPrev = document.getElementById('navPrev');
-    const navNext = document.getElementById('navNext');
-    let ipLiEls = [];
-
-    /* Swaps the panel's TEXT content — called once whenever the
-       "upcoming" world index changes, not every frame */
-    function renderPanelContent(i) {
-      const s = STAGES[i];
-      ipCur.textContent   = i + 1;
-      ipTitle.textContent = s.title;
-      ipSub.textContent   = s.sub;
-      ipDesc.textContent  = s.desc;
-      ipFacts.innerHTML   = '';
-      ipLiEls = s.facts.map(f => {
-        const li = document.createElement('li');
-        li.textContent = f;
-        ipFacts.appendChild(li);
-        return li;
-      });
-      dots.forEach((d, di) => d.classList.toggle('active', di === i));
-      navPrev.disabled = false;
-      navNext.disabled = false;
-    }
-
-    /* Applies the continuous "clarity" of the incoming transmission —
-       called every frame with ic ranging 0 (just a hint) → 1 (fully
-       resolved), plus the floor/next accent colors to blend between  */
-    function applyPanelClarity(ic, accFloor, accNext) {
-      const blur = (1 - ic) * 9;
-      const op   = 0.16 + 0.84 * ic;
-      infoPanel.style.opacity   = op.toFixed(3);
-      infoPanel.style.filter    = `blur(${blur.toFixed(2)}px)`;
-      infoPanel.style.transform = `translateY(-50%) scale(${(0.95 + 0.05 * ic).toFixed(3)})`;
-
-      const r = accFloor[0] + (accNext[0] - accFloor[0]) * ic;
-      const g = accFloor[1] + (accNext[1] - accFloor[1]) * ic;
-      const b = accFloor[2] + (accNext[2] - accFloor[2]) * ic;
-      infoPanel.style.setProperty('--accent', `${r | 0}, ${g | 0}, ${b | 0}`);
-
-      ipTrackFill.style.width = (ic * 100) + '%';
-
-      /* Facts resolve one after another — each line's own local
-         clarity is offset so they read top-to-bottom, not at once */
-      const n = ipLiEls.length || 1;
-      ipLiEls.forEach((li, idx) => {
-        const startAt = (idx / n) * 0.75;
-        const local = Math.max(0, Math.min(1, (ic - startAt) / (1 - startAt)));
-        li.style.opacity   = local.toFixed(3);
-        li.style.transform = `translateY(${((1 - local) * 8).toFixed(2)}px)`;
-      });
-    }
-
-    let lastUpcoming = -1;
-
-    /* ═══════════════════════════════════════════
-       INTERACTION
-       Drag (mouse) rotates the crystal. Real page
-       scroll — native, with a light smoothing lerp —
-       drives the dive into each successive world.
-       Reaching the last world silently wraps back to
-       the first, so the journey loops forever.
+       INTERACTION — drag to orbit the view around
+       the system, scroll (or pinch) to zoom
     ═══════════════════════════════════════════ */
     let isDragging = false;
     let prevMouse  = { x: 0, y: 0 };
     let rotVel     = { x: 0, y: 0 };
-    let outerRot   = { x: 0, y: 0 };
+    let outerRot   = { x: -0.18, y: 0 };
+    let zoom       = 15.5;
 
-    window.addEventListener('mousedown',  e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
-    window.addEventListener('mouseup',    () => { isDragging = false; });
-    window.addEventListener('mousemove',  e => {
+    window.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mouseup',   () => { isDragging = false; });
+    window.addEventListener('mousemove', e => {
       if (isDragging) {
-        rotVel.y += (e.clientX - prevMouse.x) * 0.006;
-        rotVel.x += (e.clientY - prevMouse.y) * 0.006;
+        rotVel.y += (e.clientX - prevMouse.x) * 0.005;
+        rotVel.x += (e.clientY - prevMouse.y) * 0.005;
         prevMouse = { x: e.clientX, y: e.clientY };
       }
     });
+    window.addEventListener('wheel', e => {
+      zoom = Math.max(3.0, Math.min(24.0, zoom + e.deltaY * 0.008));
+    }, { passive: true });
 
-    const SEGMENT_VH = 320; /* scroll distance (vh) allocated per world — more
-                               room between worlds so the grow-in reads as a
-                               slow, deliberate approach rather than a quick cut */
-
-    /* Stable viewport height for all scroll MATH (segment length, max
-       scroll). On mobile, window.innerHeight shrinks/grows by ~50-100px
-       as the browser's address bar hides/shows WHILE you scroll — if
-       the math used that live value directly, the world position would
-       recompute against a moving target every frame and visibly jitter.
-       vpH only updates on a genuine resize/rotation (a big width change,
-       or a height change too large to be just chrome collapsing).      */
-    let vpH = window.innerHeight;
-    let vpWLast = window.innerWidth;
-    function segmentPx()    { return vpH * SEGMENT_VH / 100; }
-    function getMaxScroll() { return Math.max(1, document.documentElement.scrollHeight - vpH); }
-
-    /* Nav buttons / keyboard jump to the START of a given world
-       (wrapping both directions), via real (smooth) page scroll */
-    function scrollToWorld(i) {
-      const idx = ((i % N) + N) % N;
-      window.scrollTo({ top: idx * segmentPx() + 3, behavior: 'smooth' });
-    }
-    navPrev.addEventListener('click', () => scrollToWorld(floorWorld - 1));
-    navNext.addEventListener('click', () => scrollToWorld(floorWorld + 1));
-    window.addEventListener('keydown', e => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); scrollToWorld(floorWorld + 1); }
-      if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  { e.preventDefault(); scrollToWorld(floorWorld - 1); }
+    let lastTouch = null, lastPinch = null;
+    window.addEventListener('touchstart', e => {
+      lastTouch = e.touches.length === 1 ? e.touches[0] : null;
     });
-
-    /* Two-finger drag rotates the object on touch devices (one finger
-       is already claimed by native page scroll — the whole journey) */
-    let lastPinch = null;
     window.addEventListener('touchmove', e => {
-      if (e.touches.length === 2) {
-        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        if (lastPinch) {
-          rotVel.y += (mx - lastPinch.x) * 0.006;
-          rotVel.x += (my - lastPinch.y) * 0.006;
-        }
-        lastPinch = { x: mx, y: my };
+      if (e.touches.length === 1 && lastTouch) {
+        const t = e.touches[0];
+        rotVel.y += (t.clientX - lastTouch.clientX) * 0.005;
+        rotVel.x += (t.clientY - lastTouch.clientY) * 0.005;
+        lastTouch = t;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (lastPinch) zoom = Math.max(3.0, Math.min(24.0, zoom - (dist - lastPinch) * 0.02));
+        lastPinch = dist;
+        lastTouch = null;
       } else {
         lastPinch = null;
       }
     }, { passive: true });
-    window.addEventListener('touchend', () => { lastPinch = null; });
+    window.addEventListener('touchend', () => { lastTouch = null; lastPinch = null; });
 
     window.addEventListener('resize', () => {
       camera.aspect = W() / H();
       camera.fov = restFov();
       camera.updateProjectionMatrix();
       renderer.setSize(W(), H());
-
-      const w = window.innerWidth, h = window.innerHeight;
-      if (w !== vpWLast || Math.abs(h - vpH) > 120) { vpH = h; }
-      vpWLast = w;
     });
 
     /* ═══════════════════════════════════════════
        RENDER LOOP
     ═══════════════════════════════════════════ */
     const clock = new THREE.Clock();
-
-    /* Collect all uniforms that need uTime updates */
     const timedMats = [
-      bgMat, starMat, moonMat, sunCoreMat, sunHaloMat, earthMat, cloudMat,
+      bgMat, sunCoreMat, sunHaloMat, venusMat, earthMat, cloudMat,
+      jupiterMat, saturnMat, uranusMat, neptuneMat, mercuryMat, marsMat,
+      ...ringMats,
     ];
-
-    let smoothScrollY = window.scrollY;
-    let floorWorld    = 0;   /* the world we most recently fully arrived at */
-    let prevWp        = 0;   /* previous frame's continuous world position */
-    let wp            = 0;   /* the RENDERED world position — rate-limited, see below */
-    let camZ          = 3.3; /* smoothed camera dolly — see loop below */
-    let camFov        = restFov(); /* smoothed camera FOV — rest value adapts to aspect */
-    let lastFrameMs   = performance.now();
-
-    /* However fast you scroll, one world never resolves faster than
-       this — scroll position still steers direction/target, but the
-       reveal itself is paced like walking deeper into a maze corridor,
-       not a slider you can yank straight through                    */
-    const MIN_SECONDS_PER_WORLD = 5;
+    let camZ = zoom;
 
     (function loop() {
       requestAnimationFrame(loop);
       const t = clock.getElapsedTime();
 
-      const nowMs = performance.now();
-      const dt = Math.min(0.1, (nowMs - lastFrameMs) / 1000);
-      lastFrameMs = nowMs;
+      cosmicGroup.rotation.y += 0.00016;
+      cosmicGroup.rotation.x += 0.00007;
 
-      /* Slow cosmic drift */
-      cosmicGroup.rotation.y += 0.00022;
-      cosmicGroup.rotation.x += 0.000095;
-
-      /* Asteroid orbits + self-tumble */
       asteroidPivots.forEach(({ pivot, spd, mesh }) => {
-        pivot.rotation.y  += spd * 0.016;
-        mesh.rotation.x   += mesh.userData.rx;
-        mesh.rotation.z   += mesh.userData.rz;
+        pivot.rotation.y += spd * 0.016;
+        mesh.rotation.x  += mesh.userData.rx;
+        mesh.rotation.z  += mesh.userData.rz;
       });
 
-      /* ── Infinite loop: silently wrap the real scroll position back
-         near the top once it hits the very bottom, so the journey
-         just keeps going. Forward-only on purpose — the natural
-         resting position at the START of the page is ALSO y≈0, so a
-         symmetric "wrap the other way" here is indistinguishable from
-         just being at world 1 and would misfire constantly (that was
-         the cause of the glitching on manual scroll: every time you
-         drifted back near the top it silently teleported you to the
-         bottom, corrupting whatever you scrolled next).              */
-      let justWrapped = false;
-      {
-        const max = getMaxScroll();
-        const y   = window.scrollY;
-        if (y > max - 4) {
-          const carry = y - (max - 4);
-          window.scrollTo(0, 4 + carry);
-          smoothScrollY = 4 + carry;
-          justWrapped = true;
-        }
-      }
-
-      /* Smooth (lagged) read of the real scroll position — the
-         page scrolls natively; this just softens what we render */
-      smoothScrollY += (window.scrollY - smoothScrollY) * 0.075;
-      const rawWp = Math.max(0, Math.min(N - 0.0001, smoothScrollY / segmentPx()));
-
-      /* Rate-limit how fast the rendered position may chase the raw
-         scroll target — guarantees the ~5s-per-world reveal even on
-         a fast fling; a slow, deliberate scroll still tracks 1:1     */
-      if (justWrapped) {
-        wp = rawWp;
-      } else {
-        const maxStep = dt / MIN_SECONDS_PER_WORLD;
-        const diff = rawWp - wp;
-        wp = Math.abs(diff) > maxStep ? wp + Math.sign(diff) * maxStep : rawWp;
-      }
-
-      const floorP = Math.floor(wp);
-      const fracP  = wp - floorP;
-      const nextIndex = (floorP + 1) % N;
-      floorWorld = floorP;
-
-      let scrollDelta = wp - prevWp;
-      if (justWrapped) scrollDelta = 0;
-      prevWp = wp;
-
-      /* ── One continuous motion per segment, not a gated pop ──
-         growEase tracks fracP the WHOLE way (0 at the segment's
-         start → 1 at arrival), smoothstep-eased, so every bit of
-         scroll visibly grows/dives the next world a little more —
-         no flat plateau, no sudden jump. The info panel resolves on
-         the same curve but with a slight lead (finishes a touch
-         before full arrival), so the text still primes what's coming
-         without ever freezing the object at zero while you read.   */
-      const growEase = fracP * fracP * (3.0 - 2.0 * fracP); /* smoothstep(fracP) */
-
-      const infoRaw = Math.min(1, fracP / 0.82);
-      const ic = infoRaw * infoRaw * (3.0 - 2.0 * infoRaw);
-
-      /* Panel always previews "nextIndex" — swap its text once,
-         then drive its clarity continuously every frame */
-      if (nextIndex !== lastUpcoming) {
-        lastUpcoming = nextIndex;
-        renderPanelContent(nextIndex);
-      }
-      applyPanelClarity(ic, ACCENTS[floorP], ACCENTS[nextIndex]);
-
-      /* Hero presence: the current world recedes and the next world
-         grows in lockstep, gradually, across the whole segment */
-      const presence = new Array(N).fill(0);
-      presence[floorP]    = 1 - growEase;
-      presence[nextIndex] = Math.max(presence[nextIndex] || 0, growEase);
-
-      /* Rotation of the hero object itself — drag input plus a
-         subtle twist coupled to the scroll motion */
-      outerRot.y += rotVel.y + 0.0022 + scrollDelta * 0.9;
+      /* Drag rotates the whole system; a slow constant drift keeps
+         it alive even with no input */
+      outerRot.y += rotVel.y + 0.0011;
       outerRot.x += rotVel.x;
-      outerRot.x  = Math.max(-0.9, Math.min(0.9, outerRot.x));
-      rotVel.x *= 0.93;
-      rotVel.y *= 0.93;
+      outerRot.x  = Math.max(-1.1, Math.min(0.6, outerRot.x));
+      rotVel.x *= 0.92;
+      rotVel.y *= 0.92;
+      solarGroup.rotation.set(outerRot.x, outerRot.y, 0);
 
-      heroRoot.rotation.y = 0.18 + outerRot.y;
-      heroRoot.rotation.x = -0.42 + outerRot.x;
-
-      /* Hero stages: no shell, no frame — each world is a bare object
-         floating deep in open space. As presence rises it surges out
-         of the darkness from its own angle (see HERO_OFFSETS), growing
-         into a large, prominent presence — but capped well short of
-         swallowing the frame, so the cosmic backdrop stays visible all
-         around it; as presence falls it recedes back down that same
-         long corridor and drifts out of view                        */
-      heroStages.forEach((s, i) => {
-        const pres = presence[i];
-        const off  = HERO_OFFSETS[i];
-        const away = 1 - pres;
-        s.group.visible = pres > 0.003;
-        s.group.position.set(off.x * away, off.y * away, -away * 1.7);
-        s.group.rotation.z = (i === floorP ? 1 : -1) * away * 0.16;
-        s.group.scale.setScalar(0.05 + 1.45 * pres); /* halved — keep the cosmos visible around it */
-        s.group.rotation.y += 0.0016;
-        s.mats.forEach(m => { if (m.uniforms.uFade) m.uniforms.uFade.value = pres; });
+      /* Planetary + self-spin motion */
+      orbitGroups.forEach(({ piv, speed, mesh }, i) => {
+        piv.rotation.y = planetDefs[i][6] + speed * t * 0.06;
+        mesh.rotation.y += mesh.userData.spin;
       });
 
-      /* A faint scroll-coupled parallax on the whole starfield/asteroid
-         backdrop — like corridor walls sliding past as you go deeper */
-      cosmicGroup.rotation.y += scrollDelta * 0.12;
+      /* Fade the whole scene in gently over the first couple of seconds */
+      const introFade = Math.min(1, t / 2.2);
+      timedMats.forEach(m => {
+        if (m.uniforms?.uTime) m.uniforms.uTime.value = t;
+        if (m.uniforms?.uFade) m.uniforms.uFade.value = introFade;
+      });
 
-      /* World tint for the background nebula */
-      bgMat.uniforms.uWorldT.value = wp;
-
-      /* Update shared uniforms */
-      timedMats.forEach(m => { if (m.uniforms?.uTime) m.uniforms.uTime.value = t; });
-
-      /* ── Shooting star animation ── */
+      /* Shooting stars */
       metData.forEach((m, mi) => {
         const cy     = (t + m.phase) % m.period;
         const active = cy < ACTIVE_DUR;
         const b6 = mi * 6, b3 = mi * 3;
-
         if (active) {
           const prog = cy / ACTIVE_DUR;
-          const hd   = prog * m.speed * ACTIVE_DUR;
-          const td   = Math.max(0, hd - m.trail);
-          /* Smooth fade-in (9%) + graceful fade-out (last 28%) */
+          const hd = prog * m.speed * ACTIVE_DUR;
+          const td = Math.max(0, hd - m.trail);
           const fadeIn  = Math.min(1.0, prog / 0.09);
           const fadeOut = 1.0 - Math.pow(Math.max(0.0, (prog - 0.72) / 0.28), 1.6);
           const fade    = fadeIn * fadeOut * m.bright;
-
           tailPos[b6]   = m.sx + m.dx * hd;
           tailPos[b6+1] = m.sy + m.dy * hd;
           tailPos[b6+2] = m.sz + m.dz * hd;
@@ -1722,7 +1272,6 @@
           tailPos[b6+5] = m.sz + m.dz * td;
           tailCol[b6]   = m.col[0] * fade; tailCol[b6+1] = m.col[1] * fade; tailCol[b6+2] = m.col[2] * fade;
           tailCol[b6+3] = 0; tailCol[b6+4] = 0; tailCol[b6+5] = 0;
-
           headPos[b3]   = tailPos[b6];
           headPos[b3+1] = tailPos[b6+1];
           headPos[b3+2] = tailPos[b6+2];
@@ -1732,7 +1281,7 @@
         } else {
           for (let k = 0; k < 6; k++) { tailPos[b6+k] = 0; tailCol[b6+k] = 0; }
           headPos[b3] = 0; headPos[b3+1] = -999; headPos[b3+2] = 0;
-          headCol[b3] = 0; headCol[b3+1] = 0;    headCol[b3+2] = 0;
+          headCol[b3] = 0; headCol[b3+1] = 0; headCol[b3+2] = 0;
         }
       });
       tailGeo.attributes.position.needsUpdate = true;
@@ -1740,23 +1289,25 @@
       headGeo.attributes.position.needsUpdate = true;
       headGeo.attributes.color.needsUpdate    = true;
 
-      /* Camera dive tracks the same growEase curve — the camera
-         eases forward gradually as you scroll deeper into a world,
-         then eases back out right after arrival. Kept modest (was a
-         much harder push-in) so the cosmic backdrop — nebula, Milky
-         Way, stars — stays visible around the object, not blotted out.
-         camZ/camFov are themselves smoothed so crossing a world
-         boundary (where the dive amount resets) never reads as a cut */
-      const dive = growEase;
-      const targetZ   = 3.3 - dive * 0.75;
-      const targetFov = restFov() - dive * 4;
-      camZ   += (targetZ   - camZ)   * 0.10;
-      camFov += (targetFov - camFov) * 0.10;
-      camera.position.z = camZ + Math.sin(t * 0.15) * 0.05;
-      if (Math.abs(camera.fov - camFov) > 0.01) {
-        camera.fov = camFov;
-        camera.updateProjectionMatrix();
-      }
+      /* Smooth zoom */
+      camZ += (zoom - camZ) * 0.08;
+      camera.position.set(0, CAM_Y, camZ);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld(); /* so project() below reads this frame's move, not last frame's */
+
+      /* Project each body to screen space for its label */
+      const w = W(), h = H();
+      labelTargets.forEach(({ obj }, i) => {
+        obj.getWorldPosition(labelVec);
+        labelVec.project(camera);
+        const el = labelEls[i];
+        if (labelVec.z > 1 || labelVec.z < -1) { el.style.opacity = '0'; return; }
+        const x = (labelVec.x * 0.5 + 0.5) * w;
+        const y = (1 - (labelVec.y * 0.5 + 0.5)) * h;
+        el.style.left = x + 'px';
+        el.style.top  = y + 'px';
+        el.style.opacity = introFade.toFixed(2);
+      });
 
       renderer.render(scene, camera);
     })();
