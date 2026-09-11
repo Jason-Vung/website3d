@@ -1127,8 +1127,11 @@
         vertexShader: rockyVS, fragmentShader: rockyFS,
       });
     }
-    /* Mercury: no atmosphere — almost no rim, just a hint of dust glint */
-    const mercuryMat = makeRockyMat([0.40, 0.40, 0.42], [0.72, 0.72, 0.74], 0.0, [0.55, 0.53, 0.52], 0.035);
+    /* Mercury: no atmosphere — almost no rim, just a hint of dust glint.
+       True-color MESSENGER imagery is warmer/browner than the Moon, not
+       neutral gray — a slight R>G>B cast on both the low and high albedo
+       ends is what actually separates Mercury from a plain gray rock.   */
+    const mercuryMat = makeRockyMat([0.38, 0.35, 0.32], [0.70, 0.65, 0.60], 0.0, [0.55, 0.50, 0.46], 0.035);
     /* Mars: real but very thin CO2 atmosphere — a faint dusty pink-tan haze, not a glow */
     const marsMat    = makeRockyMat([0.42, 0.15, 0.06], [0.86, 0.42, 0.20], 1.0, [0.82, 0.52, 0.38], 0.11);
 
@@ -1762,7 +1765,7 @@
       {
         title: 'Sao Kim', sub: 'Hành tinh thứ hai',
         desc: 'Bầu khí quyển dày đặc CO₂ giữ nhiệt — nóng nhất hệ mặt trời.',
-        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '465°C'], ['Chu kỳ', '225 ngày']],
+        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '464°C'], ['Chu kỳ', '225 ngày']],
       },
       {
         title: 'Trái Đất', sub: 'Hành tinh xanh',
@@ -1772,7 +1775,7 @@
       {
         title: 'Sao Hỏa', sub: 'Hành tinh đỏ',
         desc: 'Ngọn núi Olympus Mons cao nhất hệ mặt trời — 21.9 km.',
-        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-60°C trung bình'], ['Chu kỳ', '687 ngày']],
+        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-65°C trung bình'], ['Chu kỳ', '687 ngày']],
       },
       {
         title: 'Sao Mộc', sub: 'Người khổng lồ khí',
