@@ -114,6 +114,8 @@
       left: 0;
       transform: translateY(-50%);
       width: min(240px, 28vw);
+      max-height: 88vh; /* never clipped off-screen on short/landscape phones */
+      overflow-y: auto;
       padding: 28px 24px;
       background: var(--surface);         /* flat, no blur, no gradient */
       border-right: 1px solid var(--gray-hi);
@@ -123,6 +125,9 @@
       color: var(--gray-lo);
       z-index: 15;
       pointer-events: none;
+    }
+    @media (max-width: 900px) and (min-width: 641px) {
+      #infoPanel { width: min(210px, 30vw); padding: 22px 18px; }
     }
     #ipTrack {
       height: 2px; width: 100%;
@@ -154,9 +159,19 @@
     #ipFacts li .stat-value { font-family: var(--font-mono); font-weight: 300; font-size: 12px; color: var(--gray-lo); }
     #ipDesc { font-family: var(--font-ui); font-weight: 300; font-size: 11px; line-height: 1.7; color: var(--gray-mid); margin-top: 16px; }
     @media (max-width: 640px) {
-      #infoPanel { width: min(200px, 46vw); padding: 18px 16px; }
+      #infoPanel { width: min(210px, 50vw); padding: 16px 14px; }
       #ipTitle { font-size: 14px; }
       #ipDesc  { font-size: 10px; }
+      /* Stack label above value instead of side-by-side — the safe layout
+         regardless of how long a given fact's value happens to be         */
+      #ipFacts li { flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 0; }
+    }
+    @media (max-width: 360px) {
+      #infoPanel { width: min(190px, 54vw); padding: 14px 12px; }
+      #ipTitle { font-size: 12.5px; }
+      #ipFacts li .stat-label { font-size: 9px; }
+      #ipFacts li .stat-value { font-size: 10.5px; }
+      #ipDesc { font-size: 9.5px; line-height: 1.55; }
     }
 
     /* ── Vertical scroll nav — right edge, igloo-style ── */
@@ -1854,46 +1869,51 @@
     /* ═══════════════════════════════════════════
        STAGE CONTENT + INFO PANEL
     ═══════════════════════════════════════════ */
+    /* Content sourced from science.nasa.gov per-planet fact pages (Mercury,
+       Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune) — color/temp/
+       standout-feature/habitability notes checked against NASA's own text,
+       not invented. "Sự sống" is a plain habitability read, not a claim
+       the game/product certifies anything about real exploration.        */
     const STAGES = [
       {
         title: 'Sao Thủy', sub: 'Hành tinh đầu tiên',
-        desc: 'Bề mặt rỗ chằng chịt vết thiên thạch, không khí quyển hầu như không tồn tại.',
-        facts: [['Khoảng cách', '57.9 triệu km'], ['Đường kính', '4,879 km'], ['Nhiệt độ', '430°C / -180°C'], ['Chu kỳ', '88 ngày']],
+        desc: 'Miệng hố Caloris rộng 1.550 km — một trong những vết va chạm lớn nhất hệ mặt trời. Không khí quyển thật sự, chỉ có lớp exosphere mỏng bị gió mặt trời thổi bay.',
+        facts: [['Khoảng cách', '57.9 triệu km'], ['Đường kính', '4,879 km'], ['Nhiệt độ', '430°C / -180°C'], ['Chu kỳ', '88 ngày'], ['Sự sống', 'Không thể']],
       },
       {
         title: 'Sao Kim', sub: 'Hành tinh thứ hai',
-        desc: 'Bầu khí quyển dày đặc CO₂ giữ nhiệt — nóng nhất hệ mặt trời.',
-        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '464°C'], ['Chu kỳ', '225 ngày']],
+        desc: 'Tự quay ngược chiều — Mặt Trời mọc ở hướng Tây, và một ngày dài hơn cả một năm của nó. Bề mặt không thể sống, nhưng ở độ cao ~50km trong mây, nhiệt độ/áp suất giống Trái Đất lạ thường.',
+        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '464°C'], ['Chu kỳ', '225 ngày'], ['Sự sống', 'Không (giả thuyết ở mây)']],
       },
       {
         title: 'Trái Đất', sub: 'Hành tinh xanh',
-        desc: 'Hành tinh duy nhất được biết đến có sự sống trong vũ trụ.',
-        facts: [['Khoảng cách', '150 triệu km'], ['Đường kính', '12,742 km'], ['Nhiệt độ', '15°C trung bình'], ['Chu kỳ', '365 ngày']],
+        desc: 'Hành tinh duy nhất có nước lỏng trên bề mặt — 71% là đại dương. Mặt Trăng ổn định trục nghiêng suốt hàng triệu năm, giữ khí hậu đều đặn đủ để sự sống tồn tại hơn 3.8 tỷ năm.',
+        facts: [['Khoảng cách', '150 triệu km'], ['Đường kính', '12,742 km'], ['Nhiệt độ', '15°C trung bình'], ['Chu kỳ', '365 ngày'], ['Sự sống', 'Duy nhất có sự sống']],
       },
       {
         title: 'Sao Hỏa', sub: 'Hành tinh đỏ',
-        desc: 'Ngọn núi Olympus Mons cao nhất hệ mặt trời — 21.9 km.',
-        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-65°C trung bình'], ['Chu kỳ', '687 ngày']],
+        desc: 'Hẻm núi Valles Marineris dài gần 4.000 km, sâu 9 km — gấp hơn 10 lần Grand Canyon. Từng có sông và hồ nước lỏng hàng tỷ năm trước; NASA vẫn tìm dấu vết sự sống vi sinh cổ đại.',
+        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-65°C trung bình'], ['Chu kỳ', '687 ngày'], ['Sự sống', 'Từng có nước lỏng']],
       },
       {
         title: 'Sao Mộc', sub: 'Người khổng lồ khí',
-        desc: 'Vết Đỏ Lớn là cơn bão kéo dài hơn 350 năm.',
-        facts: [['Khoảng cách', '778 triệu km'], ['Đường kính', '139,820 km'], ['Nhiệt độ', '-110°C'], ['Chu kỳ', '12 năm']],
+        desc: 'Vết Đỏ Lớn — cơn bão rộng gấp đôi Trái Đất, đã xoay hơn 350 năm. Bản thân hành tinh không thể sống, nhưng mặt trăng Europa ẩn chứa đại dương ngầm — một trong những nơi giàu tiềm năng sự sống nhất hệ mặt trời.',
+        facts: [['Khoảng cách', '778 triệu km'], ['Đường kính', '139,820 km'], ['Nhiệt độ', '-110°C'], ['Chu kỳ', '12 năm'], ['Sự sống', 'Không (Europa có tiềm năng)']],
       },
       {
         title: 'Sao Thổ', sub: 'Hành tinh vành đai',
-        desc: 'Vành đai rộng 282,000 km nhưng chỉ dày vài chục mét.',
-        facts: [['Khoảng cách', '1.43 tỷ km'], ['Đường kính', '116,460 km'], ['Nhiệt độ', '-140°C'], ['Chu kỳ', '29 năm']],
+        desc: 'Vành đai rộng 282.000 km nhưng chỉ dày khoảng 10 mét, gồm hàng tỷ mảnh băng đá. Hai mặt trăng Enceladus và Titan có đại dương/hồ methane ngầm — ứng viên hàng đầu tìm sự sống ngoài Trái Đất.',
+        facts: [['Khoảng cách', '1.43 tỷ km'], ['Đường kính', '116,460 km'], ['Nhiệt độ', '-140°C'], ['Chu kỳ', '29 năm'], ['Sự sống', 'Không (Titan có tiềm năng)']],
       },
       {
         title: 'Sao Thiên Vương', sub: 'Người khổng lồ băng',
-        desc: 'Trục nghiêng 98° — hành tinh tự quay nằm nghiêng.',
-        facts: [['Khoảng cách', '2.87 tỷ km'], ['Đường kính', '50,724 km'], ['Nhiệt độ', '-195°C'], ['Chu kỳ', '84 năm']],
+        desc: 'Nghiêng gần 98° — tự quay như một quả bóng lăn quanh Mặt Trời, tạo mùa đông tối kéo dài 21 năm. Màu xanh lam-lục đến từ khí methane hấp thụ ánh sáng đỏ.',
+        facts: [['Khoảng cách', '2.87 tỷ km'], ['Đường kính', '50,724 km'], ['Nhiệt độ', '-195°C'], ['Chu kỳ', '84 năm'], ['Sự sống', 'Không thể']],
       },
       {
         title: 'Sao Hải Vương', sub: 'Hành tinh xa nhất',
-        desc: 'Gió nhanh nhất hệ mặt trời — 2,100 km/h.',
-        facts: [['Khoảng cách', '4.5 tỷ km'], ['Đường kính', '49,244 km'], ['Nhiệt độ', '-200°C'], ['Chu kỳ', '165 năm']],
+        desc: 'Hành tinh nhiều gió nhất hệ mặt trời — hơn 2.100 km/h, gấp 9 lần bão mạnh nhất Trái Đất. Được tìm ra năm 1846 bằng toán học, trước khi ai nhìn thấy nó qua kính viễn vọng.',
+        facts: [['Khoảng cách', '4.5 tỷ km'], ['Đường kính', '49,244 km'], ['Nhiệt độ', '-200°C'], ['Chu kỳ', '165 năm'], ['Sự sống', 'Không thể']],
       },
     ];
 
@@ -2051,17 +2071,19 @@
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const master = ctx.createGain();
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -6; limiter.knee.value = 20; limiter.ratio.value = 10;
-      limiter.attack.value = 0.003; limiter.release.value = 0.30;
+      limiter.threshold.value = -8; limiter.knee.value = 18; limiter.ratio.value = 8;
+      limiter.attack.value = 0.003; limiter.release.value = 0.25;
       master.connect(limiter); limiter.connect(ctx.destination);
       master.gain.value = 0;
-      master.gain.setTargetAtTime(0.28, ctx.currentTime, 3.0);
+      master.gain.setTargetAtTime(0.26, ctx.currentTime, 3.0);
 
-      /* ── Base harmonic pad: Cmaj9 chord, three detuned sines ── */
-      const padFreqs = [130.81, 164.81, 196.00];
-      padFreqs.forEach(f => {
+      /* ── Bright sustained pad: a genuine Cmaj9 (added the actual 9th,
+         D, which the old 3-note version was missing) — an open, airy
+         chord instead of a plain minor-leaning triad                 */
+      const padFreqs = [130.81, 164.81, 196.00, 293.66];
+      padFreqs.forEach((f, i) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.08;
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = i === 3 ? 0.045 : 0.065;
         o.connect(g); g.connect(master); o.start();
       });
 
@@ -2074,39 +2096,71 @@
       padTremoloGain.connect(master.gain);
       padTremoloLFO.start();
 
-      /* ── Sub rumble: physical weight ── */
+      /* ── Sub rumble: physical weight, kept light so it grounds the mix
+         without muddying the brighter arpeggio on top                */
       const sub = ctx.createOscillator(), subG = ctx.createGain();
-      sub.type = 'triangle'; sub.frequency.value = 32; subG.gain.value = 0.07;
+      sub.type = 'triangle'; sub.frequency.value = 32; subG.gain.value = 0.05;
       sub.connect(subG); subG.connect(master); sub.start();
 
-      /* ── Filtered cosmos noise ── */
+      /* ── Filtered cosmos noise — brightened (higher cutoff, less gain)
+         into an airy shimmer-wind rather than a dark, ominous hiss     */
       const bufLen = ctx.sampleRate * 2;
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const d = buf.getChannelData(0);
       for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
       const ns = ctx.createBufferSource(); ns.buffer = buf; ns.loop = true;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.8;
-      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 80; hp.Q.value = 0.5;
-      const noiseG = ctx.createGain(); noiseG.gain.value = 0.025;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 650; lp.Q.value = 0.7;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 140; hp.Q.value = 0.5;
+      const noiseG = ctx.createGain(); noiseG.gain.value = 0.016;
       ns.connect(hp); hp.connect(lp); lp.connect(noiseG); noiseG.connect(master); ns.start();
 
       /* Slow LFO sweeping lowpass cutoff — cosmic "breathing" */
       const noiseLFO = ctx.createOscillator(), noiseLFOG = ctx.createGain();
       noiseLFO.type = 'sine'; noiseLFO.frequency.value = 0.018;
-      noiseLFOG.gain.value = 200;
+      noiseLFOG.gain.value = 260;
       noiseLFO.connect(noiseLFOG); noiseLFOG.connect(lp.frequency); noiseLFO.start();
 
       /* ── High shimmer: C7 + D7 amplitude-modulated twinkle ── */
       const shimmerLFO = ctx.createOscillator(), shimmerLFOG = ctx.createGain();
       shimmerLFO.type = 'sine'; shimmerLFO.frequency.value = 3.7;
-      shimmerLFOG.gain.value = 0.004;
+      shimmerLFOG.gain.value = 0.005;
       shimmerLFO.connect(shimmerLFOG); shimmerLFO.start();
       [2093, 2349].forEach(f => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.006;
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.007;
         shimmerLFOG.connect(g.gain);
         o.connect(g); g.connect(master); o.start();
       });
+
+      /* ── Playful arpeggio — the real mood shift, from a static drone
+         to something that actually moves: a plucked major-pentatonic
+         run (C D E G A, two octaves) with a fast pluck envelope, tied
+         to `wp` (closed over from the render loop's own scope) so it
+         brightens and speeds up very slightly the deeper the journey
+         goes, instead of looping identically forever                  */
+      const arpNotes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+      let arpStep = 0, arpTimer = null;
+      function pluckNote(freq, level, dur) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'triangle'; o.frequency.value = freq;
+        const t0 = ctx.currentTime;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(level, t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g); g.connect(master);
+        o.start(t0); o.stop(t0 + dur + 0.05);
+      }
+      function arpTick() {
+        if (ctx.state === 'running') {
+          const bright = Math.min(1, wp / 8); /* wp: outer render-loop scroll progress */
+          const note = arpNotes[arpStep % arpNotes.length];
+          pluckNote(note, 0.045 + bright * 0.02, 0.5);
+          arpStep++;
+        }
+        const tempo = 430 - Math.min(1, wp / 8) * 70;
+        arpTimer = setTimeout(arpTick, tempo);
+      }
+      arpTimer = setTimeout(arpTick, 700);
 
       return { ctx, master };
     }
