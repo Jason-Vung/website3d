@@ -93,6 +93,53 @@
     #sndBtn:hover { color: var(--gray-lo); }
     #sndBtn.on   { color: var(--accent); }
 
+    /* ── Narration language toggle — same plain-text style, just below ── */
+    #langBtn {
+      position: fixed;
+      top: calc(42px + env(safe-area-inset-top, 0px));
+      right: calc(20px + env(safe-area-inset-right, 0px));
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .12em;
+      color: var(--gray-mid);
+      cursor: pointer;
+      user-select: none;
+      border: none;
+      background: none;
+      padding: 0;
+      transition: color .3s;
+      z-index: 20;
+    }
+    #langBtn:hover { color: var(--gray-lo); }
+    @media (max-width: 640px), (pointer: coarse) {
+      #langBtn { top: calc(64px + env(safe-area-inset-top, 0px)); font-size: 11px; padding: 6px 8px; }
+    }
+
+    /* ── Detail inset — small close-up render, top-right ── */
+    #detailInset {
+      position: fixed;
+      top: calc(68px + env(safe-area-inset-top, 0px));
+      right: calc(20px + env(safe-area-inset-right, 0px));
+      width: 168px; height: 108px;
+      border: 1px solid var(--gray-hi);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--surface);
+      z-index: 14;
+      pointer-events: none;
+      opacity: .92;
+    }
+    #detailInset canvas { display: block; width: 100%; height: 100%; }
+    #detailLabel {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      font-family: var(--font-mono); font-size: 8px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--gray-lo);
+      background: rgba(11,13,18,.72); padding: 3px 6px;
+    }
+    @media (max-width: 640px), (pointer: coarse) {
+      #detailInset { top: calc(96px + env(safe-area-inset-top, 0px)); width: 128px; height: 84px; }
+    }
+
     /* ── Intro veil (fade-in overlay) ── */
     #veil {
       position: fixed;
@@ -205,6 +252,8 @@
   <canvas id="flareCanvas" aria-hidden="true"></canvas>
   <div class="hint">kéo để xoay · cuộn để khám phá · nhấp để zoom cận cảnh</div>
   <div id="sndBtn">SND OFF</div>
+  <div id="langBtn">VOICE: EN</div>
+  <div id="detailInset"><canvas id="detailCanvas"></canvas><div id="detailLabel">Sao Thủy</div></div>
 
   <div id="infoPanel">
     <div id="ipTrack"><div id="ipTrackFill"></div></div>
@@ -291,6 +340,25 @@
     const camera = new THREE.PerspectiveCamera(restFov(), W() / H(), 0.05, 120);
     camera.position.set(0, 0, 3.3);
     camera.lookAt(0, 0, 0);
+
+    /* ── Detail inset: a second, small renderer + camera sharing the SAME
+       scene, parked close beside whichever planet is currently in view —
+       a permanent "close-up" window onto the surface detail (craters,
+       bands, rings) that's too fine to read from the main dive camera. */
+    const detailCanvas = document.getElementById('detailCanvas');
+    const detailRenderer = new THREE.WebGLRenderer({ canvas: detailCanvas, antialias: true, alpha: true });
+    detailRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const detailCamera = new THREE.PerspectiveCamera(30, 168 / 108, 0.02, 60);
+    let detailOrbitT = 0;
+    const detailCenter = new THREE.Vector3();
+    function resizeDetailRenderer() {
+      const el = document.getElementById('detailInset');
+      const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight);
+      detailRenderer.setSize(w, h, false);
+      detailCamera.aspect = w / h;
+      detailCamera.updateProjectionMatrix();
+    }
+    resizeDetailRenderer();
 
     /* ═══════════════════════════════════════════
        POST-PROCESSING — hand-rolled two-pass bloom
@@ -1881,6 +1949,14 @@
       [212, 160, 96], [200, 176, 104], [96, 192, 204], [48, 96, 216],
     ];
 
+    /* Each planet gets its own key center (semitone shift, C major scale)
+       so the arpeggio/sparkle genuinely sound different world to world,
+       not just the same loop everywhere — Mercury=C, Venus=D, Earth=E
+       (a bright major third), Mars=F, Jupiter=G, Saturn=A, Uranus=B,
+       Neptune=C an octave up (the far end of the journey, same "home"
+       note as Mercury but airier)                                    */
+    const PLANET_SEMITONES = [0, 2, 4, 5, 7, 9, 11, 12];
+
     const ipCur = document.getElementById('ipCur');
     const ipTitle = document.getElementById('ipTitle');
     const ipSub = document.getElementById('ipSub');
@@ -1939,6 +2015,7 @@
       });
     }
     let lastUpcoming = -1;
+    const detailLabelEl = document.getElementById('detailLabel');
 
     /* ═══════════════════════════════════════════
        INTERACTION
@@ -2016,6 +2093,7 @@
       renderer.setSize(W(), H());
       resizeBloomTargets();
       resizeFlareCanvas();
+      resizeDetailRenderer();
       const w = window.innerWidth, h = window.innerHeight;
       if (w !== vpWLast || Math.abs(h - vpH) > 120) { vpH = h; }
       vpWLast = w;
@@ -2087,10 +2165,14 @@
         o.connect(g); g.connect(master);
         o.start(t0); o.stop(t0 + dur + 0.05);
       }
+      /* Current planet's key-center, as a frequency ratio — read fresh on
+         every note so each world's arpeggio/sparkle genuinely re-pitches
+         as you arrive, instead of one fixed loop for the whole journey  */
+      function keyRatio() { return Math.pow(2, PLANET_SEMITONES[floorWorld] / 12); }
       function arpTick() {
         if (ctx.state === 'running') {
           const bright = Math.min(1, wp / 8); /* wp: outer render-loop scroll progress */
-          const note = arpNotes[arpStep % arpNotes.length];
+          const note = arpNotes[arpStep % arpNotes.length] * keyRatio();
           pluckNote(note, 0.045 + bright * 0.02, 0.5);
           arpStep++;
         }
@@ -2104,8 +2186,9 @@
       const sparkleNotes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
       function sparkleTick() {
         if (ctx.state === 'running') {
+          const r = keyRatio();
           sparkleNotes.forEach((f, i) => {
-            setTimeout(() => pluckNote(f, 0.05, 0.35, 'sine'), i * 55);
+            setTimeout(() => pluckNote(f * r, 0.05, 0.35, 'sine'), i * 55);
           });
         }
         setTimeout(sparkleTick, 7000 + Math.random() * 5000);
@@ -2129,40 +2212,65 @@
        Content is drawn from the same NASA-sourced facts as the panel,
        not invented, just told as a short spoken story per world.    */
     const WELCOME_MESSAGE = "Welcome to Jason's Universe!";
+    const WELCOME_MESSAGE_VI = "Chào mừng bạn đến với Vũ Trụ của Jason!";
+    /* Every entry ends with a spoken transition line naming the next world —
+       the "the character announces the user to go" cue the user asked for,
+       so the voice itself invites you to keep scrolling onward.          */
     const NARRATION = [
-      "This is Mercury, the closest world to the Sun. Its gray, cratered surface bears the Caloris Basin, one of the largest impact scars in the solar system. Daytime scorches past four hundred thirty degrees Celsius; night falls to minus one eighty. No atmosphere survives here, only a whisper of gas blown away by the solar wind.",
-      "Venus turns backward. Its day is longer than its year, and the Sun rises in the west. Beneath thick clouds of sulfuric acid, the surface reaches four hundred sixty four degrees Celsius, hot enough to melt lead. Yet fifty kilometers up, in the clouds, conditions turn almost gentle. Some still wonder if something could live there.",
-      "Your home. The only world known to hold liquid water on its surface, and the only one known to hold life. A single moon, born from an ancient collision, has quietly stabilized this planet's tilt for billions of years, the reason the seasons here have stayed gentle enough for life to endure.",
-      "The red planet, colored by iron oxide. Valles Marineris cuts nearly four thousand kilometers across its face, ten times longer than the Grand Canyon. Rivers once ran here, billions of years ago. Nothing lives on Mars today, but scientists still search its ancient rock for what might have once.",
-      "The giant. A storm called the Great Red Spot has raged here for over three hundred years, wide enough to swallow the Earth twice over. Jupiter itself could never support life, but its moon Europa hides a vast ocean beneath its ice, one of the most promising places to search for life beyond Earth.",
-      "Crowned by rings spanning two hundred eighty two thousand kilometers, yet barely ten meters thick, billions of fragments of ice and rock, held in perfect order. At its north pole, a six sided storm turns, wider than some of its own moons. Two of those moons, Titan and Enceladus, may hide oceans of their own.",
-      "Tipped almost completely on its side, Uranus rolls around the Sun like a wheel, not a top. A collision, long ago, knocked it over, and gave one hemisphere a winter that lasts twenty one years in darkness. Its pale blue green comes from methane, quietly absorbing the red light of a distant Sun.",
-      "The outermost world, discovered not by eye but by mathematics, its existence predicted before anyone ever saw it through a telescope. Here, the fastest winds in the solar system tear past two thousand one hundred kilometers an hour, howling through the darkest, coldest reaches of our system.",
+      "This is Mercury, the closest world to the Sun. Its gray, cratered surface bears the Caloris Basin, one of the largest impact scars in the solar system. Daytime scorches past four hundred thirty degrees Celsius; night falls to minus one eighty. No atmosphere survives here, only a whisper of gas blown away by the solar wind. Now, let's drift onward, deeper, toward Venus.",
+      "Venus turns backward. Its day is longer than its year, and the Sun rises in the west. Beneath thick clouds of sulfuric acid, the surface reaches four hundred sixty four degrees Celsius, hot enough to melt lead. Yet fifty kilometers up, in the clouds, conditions turn almost gentle. Some still wonder if something could live there. Keep going — Earth is just ahead.",
+      "Your home. The only world known to hold liquid water on its surface, and the only one known to hold life. A single moon, born from an ancient collision, has quietly stabilized this planet's tilt for billions of years, the reason the seasons here have stayed gentle enough for life to endure. Let's continue on, to the red planet, Mars.",
+      "The red planet, colored by iron oxide. Valles Marineris cuts nearly four thousand kilometers across its face, ten times longer than the Grand Canyon. Rivers once ran here, billions of years ago. Nothing lives on Mars today, but scientists still search its ancient rock for what might have once. Onward now, to the giant, Jupiter.",
+      "The giant. A storm called the Great Red Spot has raged here for over three hundred years, wide enough to swallow the Earth twice over. Jupiter itself could never support life, but its moon Europa hides a vast ocean beneath its ice, one of the most promising places to search for life beyond Earth. Let's drift further, to the rings of Saturn.",
+      "Crowned by rings spanning two hundred eighty two thousand kilometers, yet barely ten meters thick, billions of fragments of ice and rock, held in perfect order. At its north pole, a six sided storm turns, wider than some of its own moons. Two of those moons, Titan and Enceladus, may hide oceans of their own. Now, onward to a world tipped on its side, Uranus.",
+      "Tipped almost completely on its side, Uranus rolls around the Sun like a wheel, not a top. A collision, long ago, knocked it over, and gave one hemisphere a winter that lasts twenty one years in darkness. Its pale blue green comes from methane, quietly absorbing the red light of a distant Sun. Just a little further now, to Neptune.",
+      "The outermost world, discovered not by eye but by mathematics, its existence predicted before anyone ever saw it through a telescope. Here, the fastest winds in the solar system tear past two thousand one hundred kilometers an hour, howling through the darkest, coldest reaches of our system. And now, we begin again — back to Mercury.",
     ];
-    let narratorVoice = null;
-    function pickNarratorVoice() {
+    const NARRATION_VI = [
+      "Đây là Sao Thủy, hành tinh gần Mặt Trời nhất. Bề mặt xám xịt của nó mang miệng hố Caloris rộng 1.550 ki-lô-mét, một trong những vết va chạm lớn nhất hệ mặt trời. Ban ngày nóng hơn bốn trăm ba mươi độ C, ban đêm lạnh xuống âm một trăm tám mươi độ. Ở đây gần như không có khí quyển. Bây giờ, hãy cùng trôi sâu hơn, đến với Sao Kim.",
+      "Sao Kim tự quay ngược chiều — một ngày ở đây dài hơn cả một năm, và Mặt Trời mọc ở hướng Tây. Dưới lớp mây axit sulfuric dày đặc, bề mặt nóng tới bốn trăm sáu mươi bốn độ C, đủ nóng để làm chảy chì. Nhưng ở độ cao năm mươi ki-lô-mét trong mây, điều kiện lại gần như dễ chịu. Một số nhà khoa học vẫn tự hỏi liệu có gì đó có thể sống ở đó không. Hãy tiếp tục — Trái Đất đang ở ngay phía trước.",
+      "Ngôi nhà của bạn. Hành tinh duy nhất được biết có nước lỏng trên bề mặt, và cũng là nơi duy nhất được biết có sự sống. Một Mặt Trăng, sinh ra từ một va chạm cổ xưa, đã âm thầm giữ ổn định trục nghiêng của hành tinh này suốt hàng tỷ năm — lý do khí hậu nơi đây đủ hiền hòa để sự sống tồn tại. Hãy cùng đi tiếp, đến với hành tinh đỏ, Sao Hỏa.",
+      "Hành tinh đỏ, mang màu sắc từ oxit sắt. Hẻm núi Valles Marineris trải dài gần bốn nghìn ki-lô-mét, dài gấp mười lần hẻm núi Grand Canyon. Từng có những dòng sông chảy ở đây, hàng tỷ năm trước. Ngày nay không có sự sống trên Sao Hỏa, nhưng các nhà khoa học vẫn tìm kiếm dấu vết trong đá cổ của nó. Tiến lên nào, đến với người khổng lồ, Sao Mộc.",
+      "Người khổng lồ. Một cơn bão mang tên Vết Đỏ Lớn đã hoành hành nơi đây hơn ba trăm năm, rộng đến mức có thể nuốt trọn Trái Đất hai lần. Bản thân Sao Mộc không thể có sự sống, nhưng mặt trăng Europa của nó ẩn chứa một đại dương khổng lồ dưới lớp băng — một trong những nơi giàu tiềm năng sự sống nhất ngoài Trái Đất. Hãy trôi xa hơn nữa, đến với vành đai của Sao Thổ.",
+      "Được tôn vinh bởi vành đai trải rộng hai trăm tám mươi hai nghìn ki-lô-mét, nhưng chỉ dày khoảng mười mét — hàng tỷ mảnh băng và đá, giữ trật tự hoàn hảo. Ở cực bắc, một cơn bão sáu cạnh xoay tròn, rộng hơn cả một số mặt trăng của nó. Hai trong số những mặt trăng ấy, Titan và Enceladus, có thể đang ẩn chứa đại dương riêng. Giờ hãy tiến đến một thế giới nằm nghiêng hẳn sang một bên, Sao Thiên Vương.",
+      "Nghiêng gần như hoàn toàn sang một bên, Sao Thiên Vương lăn quanh Mặt Trời như một bánh xe, chứ không như một con quay. Một va chạm từ rất lâu đã lật nghiêng nó, khiến một nửa hành tinh chìm trong mùa đông tối suốt hai mươi mốt năm. Màu xanh lam-lục nhạt của nó đến từ khí methane, âm thầm hấp thụ ánh sáng đỏ từ một Mặt Trời xa xôi. Chỉ còn một chút nữa thôi, đến với Sao Hải Vương.",
+      "Hành tinh xa nhất, được tìm ra không phải bằng mắt thường, mà bằng toán học — sự tồn tại của nó được dự đoán trước khi ai đó nhìn thấy nó qua kính viễn vọng. Ở đây, những cơn gió nhanh nhất hệ mặt trời gào thét với tốc độ hơn hai nghìn một trăm ki-lô-mét một giờ, xuyên qua vùng tối tăm và lạnh giá nhất của hệ mặt trời. Và giờ, chúng ta lại bắt đầu — quay về với Sao Thủy.",
+    ];
+    /* Two narration languages. Vietnamese system voices are far less
+       consistently available than English across browsers/OSes (Web
+       Speech API can't guarantee one exists) — if none is found, the
+       Vietnamese TEXT is still sent with lang='vi-VN' and most engines
+       will at least attempt it, just less reliably than English.      */
+    let narratorLang = 'en'; // 'en' | 'vi'
+    let narratorVoiceEN = null, narratorVoiceVI = null;
+    function pickNarratorVoices() {
       if (!('speechSynthesis' in window)) return;
       const voices = speechSynthesis.getVoices();
       const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+      const vi = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('vi'));
       /* common bright/warm female voice names across macOS, Windows,
          Chrome and Android — first match wins, else fall back gracefully */
-      const preferred = ['Samantha', 'Google US English', 'Zira', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Ava', 'Allison', 'Susan', 'Fiona', 'Female'];
-      narratorVoice = en.find(v => preferred.some(n => v.name.includes(n))) || en[0] || voices[0] || null;
+      const preferredEN = ['Samantha', 'Google US English', 'Zira', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Ava', 'Allison', 'Susan', 'Fiona', 'Female'];
+      const preferredVI = ['Female', 'Nữ', 'Linh', 'HoaiMy', 'An'];
+      narratorVoiceEN = en.find(v => preferredEN.some(n => v.name.includes(n))) || en[0] || voices[0] || null;
+      narratorVoiceVI = vi.find(v => preferredVI.some(n => v.name.includes(n))) || vi[0] || null;
     }
     if ('speechSynthesis' in window) {
-      pickNarratorVoice();
-      speechSynthesis.onvoiceschanged = pickNarratorVoice;
+      pickNarratorVoices();
+      speechSynthesis.onvoiceschanged = pickNarratorVoices;
     }
     function makeUtterance(text) {
       const u = new SpeechSynthesisUtterance(text);
-      if (narratorVoice) u.voice = narratorVoice;
-      u.lang = 'en-US'; u.pitch = 1.18; u.rate = 1.02; u.volume = 1.0; /* brighter, warmer, welcoming */
+      const voice = narratorLang === 'vi' ? narratorVoiceVI : narratorVoiceEN;
+      if (voice) u.voice = voice;
+      u.lang = narratorLang === 'vi' ? 'vi-VN' : 'en-US';
+      u.pitch = 1.18; u.rate = 1.02; u.volume = 1.0; /* brighter, warmer, welcoming */
       return u;
     }
     function speakWelcome() {
       if (!('speechSynthesis' in window)) return;
       speechSynthesis.cancel();
-      speechSynthesis.speak(makeUtterance(WELCOME_MESSAGE));
+      speechSynthesis.speak(makeUtterance(narratorLang === 'vi' ? WELCOME_MESSAGE_VI : WELCOME_MESSAGE));
     }
     let lastNarrated = -1;
     function narratePlanet(i, opts) {
@@ -2171,7 +2279,8 @@
          queue every world skipped past; the one exception is right
          after the welcome greeting, which should finish its sentence   */
       if (!(opts && opts.keepQueue)) speechSynthesis.cancel();
-      speechSynthesis.speak(makeUtterance(NARRATION[i]));
+      const text = (narratorLang === 'vi' ? NARRATION_VI : NARRATION)[i];
+      speechSynthesis.speak(makeUtterance(text));
       lastNarrated = i;
     }
 
@@ -2194,6 +2303,16 @@
         sndBtn.classList.remove('on');
         if ('speechSynthesis' in window) speechSynthesis.cancel();
       }
+    });
+
+    const langBtn = document.getElementById('langBtn');
+    langBtn.addEventListener('click', () => {
+      narratorLang = narratorLang === 'en' ? 'vi' : 'en';
+      langBtn.textContent = narratorLang === 'vi' ? 'VOICE: VI' : 'VOICE: EN';
+      /* re-announce the current world right away in the new language,
+         so switching feels immediate rather than waiting for the next
+         world to arrive                                               */
+      if (audio && audio.ctx.state === 'running') narratePlanet(floorWorld);
     });
 
     /* ═══════════════════════════════════════════
@@ -2224,7 +2343,9 @@
        the eye through the scene instead of just tilting the model — genuine
        stereo depth instead of a fake rotation-based parallax illusion.    */
     let mouseParallaxX = 0, mouseParallaxY = 0;
-    const MIN_SECONDS_PER_WORLD = 5;
+    const MIN_SECONDS_PER_WORLD = 30; /* was 5 — user asked for a full 30s per
+      world so there's time to hear the narration, watch the 360 reveal, and
+      read the panel without feeling rushed through */
 
     (function loop() {
       requestAnimationFrame(loop);
@@ -2278,6 +2399,7 @@
       const floorP = Math.floor(wp);
       const fracP = wp - floorP;
       const nextIndex = (floorP + 1) % N;
+      if (floorWorld !== floorP) detailLabelEl.textContent = STAGES[floorP].title;
       floorWorld = floorP;
       if (floorP !== lastNarrated) narratePlanet(floorP); /* no-ops silently if sound is off */
 
@@ -2299,7 +2421,10 @@
       presence[floorP] = 1 - growEase;
       presence[nextIndex] = Math.max(presence[nextIndex] || 0, growEase);
 
-      outerRot.y += rotVel.y + 0.0022 + scrollDelta * 0.9;
+      /* Base auto-spin tuned so a full 360 deg reveal completes roughly
+         once per ~30s dwell — enough to see every side of the current
+         world without the user having to drag manually                */
+      outerRot.y += rotVel.y + 0.0035 + scrollDelta * 0.9;
       outerRot.x += rotVel.x;
       outerRot.x = Math.max(-0.9, Math.min(0.9, outerRot.x));
       rotVel.x *= 0.93;
@@ -2401,6 +2526,26 @@
 
       renderWithBloom();
       drawLensFlare(sunFade);
+
+      /* Detail inset: a slow close-up orbit around whichever planet is
+         currently in view, sharing the same scene/lighting but with its
+         own tight framing — no bloom pass, so surface detail (craters,
+         bands, rings) actually reads crisper here than in the main view */
+      detailOrbitT += dt * 0.15;
+      {
+        const stage = heroStages[floorWorld];
+        const baseR = HERO_R[heroDefs[floorWorld][0]] || 0.5;
+        const effR = Math.max(0.02, baseR * stage.group.scale.x);
+        stage.group.getWorldPosition(detailCenter);
+        const dist = effR * 2.6;
+        detailCamera.position.set(
+          detailCenter.x + Math.cos(detailOrbitT) * dist,
+          detailCenter.y + effR * 0.5,
+          detailCenter.z + Math.sin(detailOrbitT) * dist
+        );
+        detailCamera.lookAt(detailCenter);
+        detailRenderer.render(scene, detailCamera);
+      }
     })();
 
   })(); /* end IIFE */
