@@ -1540,19 +1540,34 @@
     const uranusMat = gasGiantMat(/* glsl */ `
       /* Uranus is tipped ~98° on its side — its bands run around the
          axis that points at us/away from us, not the "up" axis, so
-         they read as roughly VERTICAL stripes rather than horizontal */
+         they read as roughly VERTICAL stripes rather than horizontal.
+         Real wind-driven flow: the whole band pattern drifts slowly
+         over time (NOT "water" — this is genuine methane cloud-deck
+         motion, ~560mph winds), plus a faster traveling ripple riding
+         on top so the clouds visibly flow/wave like real footage     */
       float lat = vP.z / (length(vP) + 0.0001);
-      float bv = lat * 3.0 + (fbm3(vP * 1.2) - 0.5) * 0.15;
+      float flow = uTime * 0.03;
+      float bv = lat * 3.0 + (fbm3(vP * 1.2) - 0.5) * 0.15 + flow;
       vec3 col = mix(vec3(0.48, 0.82, 0.85), vec3(0.58, 0.90, 0.91), smoothstep(-0.6, 0.6, sin(bv)));
       float streaks = fbm(vec2(vP.z * 8.0, vP.x * 3.0 + uTime * 0.005)) * 0.06;
       col += vec3(streaks);
+      float wave = sin(lat * 16.0 + uTime * 0.35) * 0.025;
+      col += wave;
     `, 'vec3(0.68, 0.90, 0.90)');
     const neptuneMat = gasGiantMat(/* glsl */ `
+      /* Real wind-driven band flow: Neptune has the fastest winds in
+         the solar system (~2,100 km/h) — the band pattern drifts in
+         latitude over time instead of sitting static, and a fast
+         traveling ripple rides on top like real cloud-deck wave
+         motion (again: real methane clouds, not liquid water)        */
       float lat = vP.y / (length(vP) + 0.0001);
       float warp = (fbm3(vP * 1.5 + vec3(2.0, 4.0, 0.0)) - 0.5) * 0.4
                  + (fbmRidge3(vP * 3.8 + vec3(0.0, 2.0, 0.0)) - 0.5) * 0.25;
-      float bv = lat * 5.0 + warp;
+      float flow = uTime * 0.05;
+      float bv = lat * 5.0 + warp + flow;
       vec3 col = mix(vec3(0.06, 0.28, 0.74), vec3(0.16, 0.42, 0.88), smoothstep(-0.4, 0.4, sin(bv)));
+      float wave = sin(lat * 22.0 + uTime * 0.6 + warp * 4.0) * 0.035;
+      col += wave;
       vec3 spotCenter = normalize(vec3(-0.2, 0.3, 0.92));
       float spotD = length(normalize(vP) - spotCenter) / 0.20;
       float spot = smoothstep(1.0, 0.0, spotD);
