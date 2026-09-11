@@ -1164,7 +1164,7 @@
       Jupiter: 0.62, Saturn: 0.56, Uranus: 0.50, Neptune: 0.48,
     };
     const heroDefs = [
-      ['Mercury', mercuryMat, {} ],
+      ['Mercury', mercuryMat, { glow: [0.95, 0.72, 0.38] }],
       ['Venus',   venusMat,   {
         atmos: [{ mul: 1.12, col: [1.0, 0.65, 0.20], density: 1.8 }],
         glow: [1.0, 0.70, 0.30],
@@ -1181,7 +1181,10 @@
         atmos: [{ mul: 1.06, col: [0.72, 0.35, 0.16], density: 0.35 }],
         glow: [0.80, 0.38, 0.18],
       }],
-      ['Jupiter', jupiterMat, { glow: [0.86, 0.72, 0.52] }],
+      ['Jupiter', jupiterMat, {
+        atmos: [{ mul: 1.07, col: [0.80, 0.62, 0.38], density: 0.45 }],
+        glow:  [0.86, 0.72, 0.52],
+      }],
       ['Saturn',  saturnMat,  {
         ring: { inner: 1.5, outer: 2.6, color: [0.86, 0.80, 0.60], opac: 0.92, tilt: Math.PI / 2.6, gaps: SATURN_GAPS },
         glow: [0.90, 0.84, 0.60],
@@ -1190,7 +1193,10 @@
         ring: { inner: 1.55, outer: 1.82, color: [0.74, 0.88, 0.90], opac: 0.45, tilt: 1.45, gaps: URANUS_GAPS },
         glow: [0.52, 0.86, 0.88],
       }],
-      ['Neptune', neptuneMat, { glow: [0.22, 0.40, 0.92] }],
+      ['Neptune', neptuneMat, {
+        atmos: [{ mul: 1.07, col: [0.18, 0.34, 0.85], density: 0.30 }],
+        glow:  [0.22, 0.40, 0.92],
+      }],
     ];
     const N = heroDefs.length;
     const heroStages = [];
@@ -1226,7 +1232,12 @@
         });
       }
       if (extra.glow) {
-        const glow = makeGlowHalo(r * 1.5, extra.glow, 0.10, 5.0);
+        /* Saturn's halo needs to reach past the ring system, not just
+           the planet body — bigger radius, softer so it doesn't glare */
+        const glowRad  = (name === 'Saturn') ? r * 2.8 : r * 1.5;
+        const glowOpac = (name === 'Saturn') ? 0.06   : 0.10;
+        const glowExp  = (name === 'Saturn') ? 4.0    : 5.0;
+        const glow = makeGlowHalo(glowRad, extra.glow, glowOpac, glowExp);
         group.add(glow);
         mats.push(glow.material);
         glowMats.push(glow.material);
@@ -1515,43 +1526,85 @@
     /* ═══════════════════════════════════════════
        AMBIENT SOUND (synthesised, opt-in)
     ═══════════════════════════════════════════ */
-    let audioCtx = null;
+    let audio = null;
     function initAudio() {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const master = ctx.createGain();
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -8; limiter.knee.value = 18; limiter.ratio.value = 12;
-      limiter.attack.value = 0.003; limiter.release.value = 0.25;
+      limiter.threshold.value = -6; limiter.knee.value = 20; limiter.ratio.value = 10;
+      limiter.attack.value = 0.003; limiter.release.value = 0.30;
       master.connect(limiter); limiter.connect(ctx.destination);
       master.gain.value = 0;
-      master.gain.setTargetAtTime(0.32, ctx.currentTime, 2.0);
-      [[42,'sine',0.42],[42.85,'sine',0.17],[84.3,'sine',0.12],[126,'triangle',0.055],[210,'triangle',0.03]].forEach(([f,t,g]) => {
-        const o = ctx.createOscillator(), gn = ctx.createGain();
-        o.type = t; o.frequency.value = f; gn.gain.value = g;
-        o.connect(gn); gn.connect(master); o.start();
-      });
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      const ns = ctx.createBufferSource(); ns.buffer = buf; ns.loop = true;
-      const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 195; filt.Q.value = 3.5;
-      const ng = ctx.createGain(); ng.gain.value = 0.036;
-      ns.connect(filt); filt.connect(ng); ng.connect(master); ns.start();
-      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.055;
-      const lg = ctx.createGain(); lg.gain.value = 75;
-      lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
-      [528, 531.5, 524.8, 792, 1056].forEach((f, i) => {
+      master.gain.setTargetAtTime(0.28, ctx.currentTime, 3.0);
+
+      /* ── Base harmonic pad: Cmaj9 chord, three detuned sines ── */
+      const padFreqs = [130.81, 164.81, 196.00];
+      padFreqs.forEach(f => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = f;
-        g.gain.value = i < 3 ? 0.0085 : 0.004;
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.08;
         o.connect(g); g.connect(master); o.start();
       });
-      return ctx;
+
+      /* Tremolo LFO on pad layer — 0.04 Hz, very slow breath */
+      const padTremoloLFO = ctx.createOscillator();
+      const padTremoloGain = ctx.createGain();
+      padTremoloLFO.type = 'sine'; padTremoloLFO.frequency.value = 0.04;
+      padTremoloGain.gain.value = 0.03;
+      padTremoloLFO.connect(padTremoloGain);
+      padTremoloGain.connect(master.gain);
+      padTremoloLFO.start();
+
+      /* ── Sub rumble: physical weight ── */
+      const sub = ctx.createOscillator(), subG = ctx.createGain();
+      sub.type = 'triangle'; sub.frequency.value = 32; subG.gain.value = 0.07;
+      sub.connect(subG); subG.connect(master); sub.start();
+
+      /* ── Filtered cosmos noise ── */
+      const bufLen = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+      const ns = ctx.createBufferSource(); ns.buffer = buf; ns.loop = true;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 0.8;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 80; hp.Q.value = 0.5;
+      const noiseG = ctx.createGain(); noiseG.gain.value = 0.025;
+      ns.connect(hp); hp.connect(lp); lp.connect(noiseG); noiseG.connect(master); ns.start();
+
+      /* Slow LFO sweeping lowpass cutoff — cosmic "breathing" */
+      const noiseLFO = ctx.createOscillator(), noiseLFOG = ctx.createGain();
+      noiseLFO.type = 'sine'; noiseLFO.frequency.value = 0.018;
+      noiseLFOG.gain.value = 200;
+      noiseLFO.connect(noiseLFOG); noiseLFOG.connect(lp.frequency); noiseLFO.start();
+
+      /* ── High shimmer: C7 + D7 amplitude-modulated twinkle ── */
+      const shimmerLFO = ctx.createOscillator(), shimmerLFOG = ctx.createGain();
+      shimmerLFO.type = 'sine'; shimmerLFO.frequency.value = 3.7;
+      shimmerLFOG.gain.value = 0.004;
+      shimmerLFO.connect(shimmerLFOG); shimmerLFO.start();
+      [2093, 2349].forEach(f => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.006;
+        shimmerLFOG.connect(g.gain);
+        o.connect(g); g.connect(master); o.start();
+      });
+
+      return { ctx, master };
     }
     const sndBtn = document.getElementById('sndBtn');
     sndBtn.addEventListener('click', () => {
-      if (!audioCtx) { audioCtx = initAudio(); sndBtn.textContent = '♪ sound on'; sndBtn.classList.add('on'); }
-      else if (audioCtx.state === 'suspended') { audioCtx.resume(); sndBtn.classList.add('on'); }
+      if (!audio) {
+        audio = initAudio();
+        sndBtn.textContent = '♪ sound on';
+        sndBtn.classList.add('on');
+      } else if (audio.ctx.state === 'suspended') {
+        audio.ctx.resume();
+        sndBtn.textContent = '♪ sound on';
+        sndBtn.classList.add('on');
+      } else {
+        audio.ctx.suspend();
+        sndBtn.textContent = '♪ sound';
+        sndBtn.classList.remove('on');
+      }
     });
 
     /* ═══════════════════════════════════════════
@@ -1584,6 +1637,10 @@
     (function loop() {
       requestAnimationFrame(loop);
       const t = clock.getElapsedTime();
+      if (audio) {
+        const tvol = 0.22 + 0.10 * Math.max(0, 1.0 - wp / 4.0);
+        audio.master.gain.setTargetAtTime(tvol, audio.ctx.currentTime, 1.5);
+      }
       const nowMs = performance.now();
       const dt = Math.min(0.1, (nowMs - lastFrameMs) / 1000);
       lastFrameMs = nowMs;
