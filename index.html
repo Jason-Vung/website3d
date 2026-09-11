@@ -1,6 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Crystal Solar System</title>
@@ -20,6 +17,10 @@
       display: block;
       position: fixed;
       inset: 0;
+    }
+    #flareCanvas {
+      z-index: 8;
+      pointer-events: none;
     }
     /* Real scrollable height — one tall invisible column.
        The canvas + UI stay fixed; scrolling through this is
@@ -154,10 +155,9 @@
       #stageNav button { width: 40px; height: 40px; font-size: 15px; }
     }
   </style>
-</head>
-<body>
 
   <canvas id="c"></canvas>
+  <canvas id="flareCanvas" aria-hidden="true"></canvas>
   <div class="hint">kéo để xoay · cuộn để lặn sâu qua từng hành tinh</div>
   <div id="sndBtn">♪ sound</div>
 
@@ -219,21 +219,235 @@
     const H = () => window.innerHeight;
 
     const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2.5));
     renderer.setSize(W(), H());
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 0.95;
+    renderer.shadowMap.enabled = false; /* shadows are hand-rolled in-shader (Saturn's ring shadow) — no JS shadow-map overhead */
     renderer.sortObjects = true;
+    renderer.autoClear = false; /* the bloom pipeline below clears explicitly per pass */
 
     function restFov() {
       const aspect = W() / H();
       return aspect < 0.8 ? 52 : aspect < 1.05 ? 46 : 38;
     }
 
+    /* Cinematic lens flare — drawn on a plain 2-D canvas overlaid on
+       the WebGL one, not more 3-D geometry: it's screen-space by
+       nature (it lives on the LENS, not in the scene), so Canvas2D
+       is the honest tool for it rather than faking it with sprites. */
+    const flareCanvas = document.getElementById('flareCanvas');
+    const flareCtx = flareCanvas.getContext('2d');
+    function resizeFlareCanvas() {
+      const dpr = Math.min(devicePixelRatio, 2);
+      flareCanvas.width = Math.max(1, Math.round(W() * dpr));
+      flareCanvas.height = Math.max(1, Math.round(H() * dpr));
+      flareCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resizeFlareCanvas();
+
     const scene  = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(restFov(), W() / H(), 0.05, 120);
     camera.position.set(0, 0, 3.3);
     camera.lookAt(0, 0, 0);
+
+    /* ═══════════════════════════════════════════
+       POST-PROCESSING — hand-rolled two-pass bloom
+       + chromatic aberration. No addon library: just
+       WebGLRenderTarget + fullscreen quads, four passes
+       per frame:
+         1) main scene, full resolution        → rtMain
+         2) same scene, camera sees ONLY the
+            objects on BLOOM_LAYER (sun, corona,
+            flares, meteor heads) at half-res    → rtGlow
+         3) separable 9-tap Gaussian blur,
+            horizontal then vertical             → rtBlurA → rtBlurB
+         4) composite rtMain + rtBlurB*strength,
+            with chromatic aberration, straight
+            to the screen
+       (Only rtGlow/rtBlurA/rtBlurB run at half
+       resolution — rtMain stays full-res so the
+       actual scene detail this whole project is
+       built on on isn't softened by the bloom pass.)
+    ═══════════════════════════════════════════ */
+    const BLOOM_LAYER = 1;
+    function markBloom(obj) { obj.layers.enable(BLOOM_LAYER); }
+
+    const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: true, stencilBuffer: false };
+    let rtMain  = new THREE.WebGLRenderTarget(W(), H(), rtOpts);
+    let glowW   = Math.max(2, Math.floor(W() / 2));
+    let glowH   = Math.max(2, Math.floor(H() / 2));
+    let rtGlow  = new THREE.WebGLRenderTarget(glowW, glowH, rtOpts);
+    let rtBlurA = new THREE.WebGLRenderTarget(glowW, glowH, rtOpts);
+    let rtBlurB = new THREE.WebGLRenderTarget(glowW, glowH, rtOpts);
+
+    const quadScene = new THREE.Scene();
+    const quadCam   = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const quadGeo   = new THREE.PlaneGeometry(2, 2);
+    const quadVS = /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+    `;
+
+    const blurMat = new THREE.ShaderMaterial({
+      uniforms: { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2(1, 0) }, uTexel: { value: new THREE.Vector2(1 / glowW, 1 / glowH) } },
+      vertexShader: quadVS,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform vec2 uDir, uTexel;
+        void main() {
+          /* 9-tap separable Gaussian: 1 center + 4 symmetric pairs */
+          float w0 = 0.227, w1 = 0.194, w2 = 0.121, w3 = 0.054, w4 = 0.016;
+          vec2 o = uDir * uTexel;
+          vec3 sum = texture2D(tDiffuse, vUv).rgb * w0;
+          sum += texture2D(tDiffuse, vUv + o * 1.0).rgb * w1; sum += texture2D(tDiffuse, vUv - o * 1.0).rgb * w1;
+          sum += texture2D(tDiffuse, vUv + o * 2.0).rgb * w2; sum += texture2D(tDiffuse, vUv - o * 2.0).rgb * w2;
+          sum += texture2D(tDiffuse, vUv + o * 3.0).rgb * w3; sum += texture2D(tDiffuse, vUv - o * 3.0).rgb * w3;
+          sum += texture2D(tDiffuse, vUv + o * 4.0).rgb * w4; sum += texture2D(tDiffuse, vUv - o * 4.0).rgb * w4;
+          gl_FragColor = vec4(sum, 1.0);
+        }
+      `,
+    });
+    const blurQuad = new THREE.Mesh(quadGeo, blurMat);
+    quadScene.add(blurQuad);
+
+    const compositeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        tScene: { value: null }, tBloom: { value: null },
+        uBloomStrength: { value: 0.85 }, uChrAberration: { value: 0.004 },
+      },
+      vertexShader: quadVS,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform sampler2D tScene, tBloom;
+        uniform float uBloomStrength, uChrAberration;
+        void main() {
+          /* Chromatic aberration: only kicks in away from center,
+             so the middle of the frame — where the eye rests — stays
+             perfectly sharp                                        */
+          vec2 dir = vUv - 0.5;
+          float d = length(dir);
+          float mask = smoothstep(0.35, 0.65, d);
+          float str = d * uChrAberration * mask;
+
+          float r = texture2D(tScene, vUv + dir * str).r;
+          float g = texture2D(tScene, vUv).g;
+          float b = texture2D(tScene, vUv - dir * str).b;
+          vec3 col = vec3(r, g, b);
+
+          float br = texture2D(tBloom, vUv + dir * str * 2.0).r;
+          float bg = texture2D(tBloom, vUv).g;
+          float bb = texture2D(tBloom, vUv - dir * str * 2.0).b;
+          col += vec3(br, bg, bb) * uBloomStrength;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+    const compositeQuad = new THREE.Mesh(quadGeo, compositeMat);
+    quadScene.add(compositeQuad);
+
+    function runFullscreenPass(mesh, target) {
+      blurQuad.visible = (mesh === blurQuad);
+      compositeQuad.visible = (mesh === compositeQuad);
+      renderer.setRenderTarget(target);
+      renderer.clear();
+      renderer.render(quadScene, quadCam);
+    }
+
+    function renderWithBloom() {
+      renderer.setRenderTarget(rtMain);
+      renderer.clear();
+      renderer.render(scene, camera);
+
+      camera.layers.set(BLOOM_LAYER);
+      renderer.setRenderTarget(rtGlow);
+      renderer.setClearColor(0x000000, 1);
+      renderer.clear();
+      renderer.render(scene, camera);
+      camera.layers.set(0);
+
+      blurMat.uniforms.tDiffuse.value = rtGlow.texture;
+      blurMat.uniforms.uDir.value.set(1, 0);
+      runFullscreenPass(blurQuad, rtBlurA);
+
+      blurMat.uniforms.tDiffuse.value = rtBlurA.texture;
+      blurMat.uniforms.uDir.value.set(0, 1);
+      runFullscreenPass(blurQuad, rtBlurB);
+
+      compositeMat.uniforms.tScene.value = rtMain.texture;
+      compositeMat.uniforms.tBloom.value = rtBlurB.texture;
+      runFullscreenPass(compositeQuad, null);
+    }
+
+    function resizeBloomTargets() {
+      rtMain.setSize(W(), H());
+      glowW = Math.max(2, Math.floor(W() / 2));
+      glowH = Math.max(2, Math.floor(H() / 2));
+      rtGlow.setSize(glowW, glowH);
+      rtBlurA.setSize(glowW, glowH);
+      rtBlurB.setSize(glowW, glowH);
+      blurMat.uniforms.uTexel.value.set(1 / glowW, 1 / glowH);
+    }
+
+    /* Draws the flare each frame, projecting the Sun's actual world
+       position through the camera's own matrices — this is a real
+       screen-space projection, not a hand-placed decal, so it tracks
+       the Sun correctly through every drag/dive/breath the camera does */
+    const _flareWorldPos = new THREE.Vector3();
+    function drawLensFlare(sunFade) {
+      flareCtx.clearRect(0, 0, W(), H());
+      if (sunFade <= 0.002) return;
+
+      camera.updateMatrixWorld(true);
+      sunGroup.getWorldPosition(_flareWorldPos);
+      _flareWorldPos.project(camera); /* → NDC, using matrixWorldInverse + projectionMatrix */
+      if (_flareWorldPos.z > 1 || _flareWorldPos.z < -1) return; /* behind the camera */
+
+      const sx = (_flareWorldPos.x * 0.5 + 0.5) * W();
+      const sy = (1 - (_flareWorldPos.y * 0.5 + 0.5)) * H();
+      const cx = W() / 2, cy = H() / 2;
+      const dx = cx - sx, dy = cy - sy;
+      const sunScreenDist = Math.hypot(_flareWorldPos.x, _flareWorldPos.y);
+      const overallAlpha = sunFade * (1.0 - Math.min(1, sunScreenDist / 0.8) * 0.3);
+      if (overallAlpha <= 0.002) return;
+
+      const pointAt = t => [sx + dx * t, sy + dy * t];
+      function hexAt(x, y, rad) {
+        flareCtx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+          if (i === 0) flareCtx.moveTo(px, py); else flareCtx.lineTo(px, py);
+        }
+        flareCtx.closePath();
+      }
+
+      flareCtx.globalAlpha = overallAlpha;
+
+      let [x, y] = pointAt(0);
+      let g = flareCtx.createRadialGradient(x, y, 0, x, y, 80);
+      g.addColorStop(0, 'rgba(255,220,100,0.9)'); g.addColorStop(1, 'rgba(255,220,100,0)');
+      flareCtx.fillStyle = g; flareCtx.beginPath(); flareCtx.arc(x, y, 80, 0, Math.PI * 2); flareCtx.fill();
+
+      [x, y] = pointAt(0.25);
+      flareCtx.fillStyle = 'rgba(255,180,80,0.25)'; hexAt(x, y, 18); flareCtx.fill();
+
+      [x, y] = pointAt(0.45);
+      g = flareCtx.createRadialGradient(x, y, 0, x, y, 35);
+      g.addColorStop(0, 'rgba(120,180,255,0.3)'); g.addColorStop(1, 'rgba(120,180,255,0)');
+      flareCtx.fillStyle = g; flareCtx.beginPath(); flareCtx.arc(x, y, 35, 0, Math.PI * 2); flareCtx.fill();
+
+      [x, y] = pointAt(0.6);
+      flareCtx.fillStyle = 'rgba(80,120,255,0.18)'; hexAt(x, y, 18); flareCtx.fill();
+
+      [x, y] = pointAt(1.0);
+      flareCtx.fillStyle = 'rgba(180,100,255,0.12)';
+      flareCtx.beginPath(); flareCtx.arc(x, y, 24, 0, Math.PI * 2); flareCtx.fill();
+
+      flareCtx.globalAlpha = 1;
+    }
 
     /* ═══════════════════════════════════════════
        SHARED GLSL
@@ -405,30 +619,10 @@
           col += scC * bC;
           col += scC * (exp(-abs(fC.x-rC2)*80.0)*exp(-dC*dC*120.0) + exp(-abs(fC.y-rC3)*80.0)*exp(-dC*dC*120.0)) * bC * 4.5;
 
-          vec2 fa = vec2(0.22,0.34), fb = vec2(-0.31,0.18), fc = vec2(0.40,-0.23);
-          vec2 fd = vec2(-0.17,-0.41), fe = vec2(0.11,0.45), ff = vec2(-0.44,-0.07);
-          float ba = 0.55+0.45*sin(uTime*0.42+0.8), bb = 0.55+0.45*sin(uTime*0.58+2.3), bc = 0.55+0.45*sin(uTime*0.35+4.1);
-          float bd = 0.55+0.45*sin(uTime*0.65+1.5), be = 0.55+0.45*sin(uTime*0.48+3.7), bf = 0.55+0.45*sin(uTime*0.52+5.2);
-          col += vec3(0.90,0.94,1.0) * smoothstep(0.011,0.0,length(uv-fa)) * ba * 2.2;
-          col += vec3(0.86,0.90,1.0) * smoothstep(0.008,0.0,length(uv-fb)) * bb * 1.9;
-          col += vec3(0.95,0.92,1.0) * smoothstep(0.013,0.0,length(uv-fc)) * bc * 2.4;
-          col += vec3(0.90,0.88,1.0) * smoothstep(0.008,0.0,length(uv-fd)) * bd * 1.8;
-          col += vec3(0.88,0.93,1.0) * smoothstep(0.009,0.0,length(uv-fe)) * be * 2.0;
-          col += vec3(0.96,0.95,1.0) * smoothstep(0.014,0.0,length(uv-ff)) * bf * 2.6;
-          /* Full 4-spike diffraction (H+V+diagonal) on all 6 hero stars —
-             a real bright-star cross pattern, not just a soft glow dot  */
-          col += vec3(0.90,0.94,1.0) * (exp(-(uv.x-fa.x)*(uv.x-fa.x)*1800.0)*exp(-(uv.y-fa.y)*(uv.y-fa.y)*6200.0) + exp(-(uv.y-fa.y)*(uv.y-fa.y)*1800.0)*exp(-(uv.x-fa.x)*(uv.x-fa.x)*6200.0)) * ba * 0.55;
-          col += vec3(0.86,0.90,1.0) * (exp(-(uv.x-fb.x)*(uv.x-fb.x)*1800.0)*exp(-(uv.y-fb.y)*(uv.y-fb.y)*6200.0) + exp(-(uv.y-fb.y)*(uv.y-fb.y)*1800.0)*exp(-(uv.x-fb.x)*(uv.x-fb.x)*6200.0)) * bb * 0.48;
-          col += vec3(0.95,0.92,1.0) * (exp(-(uv.x-fc.x)*(uv.x-fc.x)*1800.0)*exp(-(uv.y-fc.y)*(uv.y-fc.y)*6200.0) + exp(-(uv.y-fc.y)*(uv.y-fc.y)*1800.0)*exp(-(uv.x-fc.x)*(uv.x-fc.x)*6200.0)) * bc * 0.60;
-          col += vec3(0.90,0.88,1.0) * (exp(-(uv.x-fd.x)*(uv.x-fd.x)*1800.0)*exp(-(uv.y-fd.y)*(uv.y-fd.y)*6200.0) + exp(-(uv.y-fd.y)*(uv.y-fd.y)*1800.0)*exp(-(uv.x-fd.x)*(uv.x-fd.x)*6200.0)) * bd * 0.45;
-          col += vec3(0.88,0.93,1.0) * (exp(-(uv.x-fe.x)*(uv.x-fe.x)*1800.0)*exp(-(uv.y-fe.y)*(uv.y-fe.y)*6200.0) + exp(-(uv.y-fe.y)*(uv.y-fe.y)*1800.0)*exp(-(uv.x-fe.x)*(uv.x-fe.x)*6200.0)) * be * 0.50;
-          col += vec3(0.96,0.95,1.0) * (exp(-(uv.x-ff.x)*(uv.x-ff.x)*1800.0)*exp(-(uv.y-ff.y)*(uv.y-ff.y)*6200.0) + exp(-(uv.y-ff.y)*(uv.y-ff.y)*1800.0)*exp(-(uv.x-ff.x)*(uv.x-ff.x)*6200.0)) * bf * 0.70;
-          { vec2 s = uv - fa; col += vec3(0.90,0.94,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * ba * 0.30; }
-          { vec2 s = uv - fb; col += vec3(0.86,0.90,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bb * 0.30; }
-          { vec2 s = uv - fc; col += vec3(0.95,0.92,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bc * 0.30; }
-          { vec2 s = uv - fd; col += vec3(0.90,0.88,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bd * 0.30; }
-          { vec2 s = uv - fe; col += vec3(0.88,0.93,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * be * 0.30; }
-          { vec2 s = uv - ff; col += vec3(0.96,0.95,1.0) * (exp(-(s.x+s.y)*(s.x+s.y)*1400.0)*exp(-(s.x-s.y)*(s.x-s.y)*5200.0) + exp(-(s.x-s.y)*(s.x-s.y)*1400.0)*exp(-(s.x+s.y)*(s.x+s.y)*5200.0)) * bf * 0.30; }
+          /* The 6 "hero" bright stars used to be hand-placed 2-D points
+             right here — they're now real 3-D THREE.Points elsewhere in
+             the scene (see HERO_STARS below), so they parallax properly
+             as the camera moves instead of being glued to the screen.  */
 
           /* World tint: whichever planet we're nearest to washes the
              nebula a touch in its own hue (8 stops, wraps) */
@@ -627,7 +821,78 @@
       blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, sizeAttenuation: true,
     }));
     meteorHeads.renderOrder = 9;
+    markBloom(meteorHeads);
     cosmicGroup.add(meteorHeads);
+
+    /* ── 6 hero bright stars, as REAL 3-D point sprites ──
+       Previously these were 6 hand-placed points baked into the flat
+       background quad — fixed to the screen, never moving relative
+       to it. As actual objects in the scene at radius ~12, they now
+       parallax correctly when the camera drags/dives, like every
+       other star here already does.                                */
+    const HERO_STAR_DIRS = [
+      [ 0.35,  0.55, -0.75], [-0.60,  0.30,  0.74], [ 0.70, -0.35, -0.62],
+      [-0.30, -0.70,  0.65], [ 0.15,  0.80,  0.58], [-0.75, -0.10, -0.65],
+    ];
+    const HERO_STAR_COLORS = [
+      [0.90, 0.94, 1.0], [0.86, 0.90, 1.0], [0.95, 0.92, 1.0],
+      [0.90, 0.88, 1.0], [0.88, 0.93, 1.0], [0.96, 0.95, 1.0],
+    ];
+    const HERO_STAR_PHASE = [0.8, 2.3, 4.1, 1.5, 3.7, 5.2];
+    const heroStarPos = new Float32Array(18);
+    const heroStarCol = new Float32Array(18);
+    const heroStarPhase = new Float32Array(6);
+    HERO_STAR_DIRS.forEach(([x, y, z], i) => {
+      const len = Math.sqrt(x * x + y * y + z * z);
+      heroStarPos[i * 3]     = (x / len) * 12;
+      heroStarPos[i * 3 + 1] = (y / len) * 12;
+      heroStarPos[i * 3 + 2] = (z / len) * 12;
+      heroStarCol[i * 3] = HERO_STAR_COLORS[i][0];
+      heroStarCol[i * 3 + 1] = HERO_STAR_COLORS[i][1];
+      heroStarCol[i * 3 + 2] = HERO_STAR_COLORS[i][2];
+      heroStarPhase[i] = HERO_STAR_PHASE[i];
+    });
+    const heroStarGeo = new THREE.BufferGeometry();
+    heroStarGeo.setAttribute('position', new THREE.BufferAttribute(heroStarPos, 3));
+    heroStarGeo.setAttribute('aColor', new THREE.BufferAttribute(heroStarCol, 3));
+    heroStarGeo.setAttribute('aPhase', new THREE.BufferAttribute(heroStarPhase, 1));
+    const heroStarMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: /* glsl */ `
+        attribute vec3 aColor;
+        attribute float aPhase;
+        varying vec3 vColor;
+        varying float vPhase;
+        void main() {
+          vColor = aColor;
+          vPhase = aPhase;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = clamp(260.0 / -mv.z, 40.0, 260.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        varying vec3 vColor;
+        varying float vPhase;
+        void main() {
+          vec2 p = gl_PointCoord - 0.5;
+          /* 4-arm diffraction spike: horizontal, vertical, both diagonals */
+          float spike = exp(-p.x*p.x*800.0) * exp(-p.y*p.y*6000.0)
+                      + exp(-p.y*p.y*800.0) * exp(-p.x*p.x*6000.0)
+                      + exp(-(p.x+p.y)*(p.x+p.y)*700.0) * exp(-(p.x-p.y)*(p.x-p.y)*5000.0)
+                      + exp(-(p.x-p.y)*(p.x-p.y)*700.0) * exp(-(p.x+p.y)*(p.x+p.y)*5000.0);
+          float core = exp(-dot(p, p) * 120.0);
+          float twinkle = 0.6 + 0.4 * sin(uTime * 0.5 + vPhase);
+          float b = (spike + core) * twinkle;
+          gl_FragColor = vec4(vColor * b * 2.2, clamp(b, 0.0, 1.0));
+        }
+      `,
+    });
+    const heroStars = new THREE.Points(heroStarGeo, heroStarMat);
+    markBloom(heroStars);
+    cosmicGroup.add(heroStars);
 
     /* ═══════════════════════════════════════════
        HERO STAGES — 8 planets, one dived into at a
@@ -728,10 +993,11 @@
       makeCoronaShell(2.4, 'vec3(1.0, 0.4, 0.05)', 'vec3(1.0, 0.4, 0.05)', 0.04),
     ];
 
+    markBloom(sunMesh);
     const sunGroup = new THREE.Group();
     sunGroup.position.copy(SUN_POS);
     sunGroup.add(sunMesh);
-    coronaShells.forEach(s => sunGroup.add(s));
+    coronaShells.forEach(s => { markBloom(s); sunGroup.add(s); });
     heroRoot.add(sunGroup);
 
     /* Four solar flares orbiting the limb — simple animated point sprites */
@@ -744,6 +1010,7 @@
         blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
       });
       const pts = new THREE.Points(geo, mat);
+      markBloom(pts);
       heroRoot.add(pts);
       sunFlares.push({ pts, mat, i });
     }
@@ -811,7 +1078,7 @@
            almost none; Mars gets a thin dusty haze, not a glow      */
         float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
         lit += uRimCol * fr * uRimStrength;
-        lit += (grain(gl_FragCoord.xy, uTime) * 0.014) * (0.3 + lambert);
+        lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
         gl_FragColor = vec4(lit, uFade);
       }
     `;
@@ -861,7 +1128,7 @@
         vec3 lit = base * (0.16 + lambert * 0.86);
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
         lit += vec3(1.0, 0.78, 0.42) * fr * 0.32;
-        lit += (grain(gl_FragCoord.xy, uTime) * 0.012) * (0.3 + lambert);
+        lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
         gl_FragColor = vec4(lit, uFade);
       }
     `, THREE.NormalBlending);
@@ -934,7 +1201,7 @@
         lit += vec3(1.0, 0.85, 0.5) * city * twinkle * 0.9;
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.6);
         lit += vec3(0.25, 0.48, 1.0) * fr * 0.38;
-        lit += (grain(gl_FragCoord.xy, uTime) * 0.013) * (0.3 + lambert);
+        lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
         gl_FragColor = vec4(lit, uFade);
       }
     `, THREE.NormalBlending);
@@ -957,7 +1224,7 @@
        composition) instead of one generic white-blue glow, a lower
        ambient floor for a harder terminator, and ridged (not just
        smooth-fbm) turbulence in the bands for sharper storm edges  */
-    function gasGiantMat(colorExpr, rimCol) {
+    function gasGiantMat(colorExpr, rimCol, shadowExpr) {
       return heroMaterial(heroVS_plain, /* glsl */ `
         varying vec3 vN, vWP, vP;
         uniform float uTime, uFade;
@@ -968,6 +1235,7 @@
           vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
           float lambert = max(dot(N, L), 0.0);
           ${colorExpr}
+          ${shadowExpr || ''}
           /* Limb darkening: the edge of a gas giant reads darker in
              real photography — this alone kills the "flat disc" look */
           float limb = pow(max(dot(N, V), 0.0), 0.45);
@@ -980,7 +1248,7 @@
           float phaseAngle = dot(L, V);
           float backlit = smoothstep(0.0, -0.6, phaseAngle);
           lit += col * backlit * fr * 0.4;
-          lit += (grain(gl_FragCoord.xy, uTime) * 0.011) * (0.3 + lambert);
+          lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
           gl_FragColor = vec4(lit, uFade);
         }
       `, THREE.NormalBlending);
@@ -994,19 +1262,32 @@
       vec3 col = mix(vec3(0.76, 0.60, 0.42), vec3(0.94, 0.84, 0.66), smoothstep(-0.3, 0.3, b1));
       col = mix(col, vec3(0.58, 0.40, 0.26), smoothstep(0.4, 0.7, b2) * 0.5);
       /* Great Red Spot: a real 3-D swirling ellipse, not a round blob —
-         its own local tangent frame, an inner rotating warp, and a
-         slightly brighter ring right at its edge                    */
+         its own local tangent frame, a genuinely ROTATING internal
+         warp (a cyclone, not a static texture), a tangential velocity
+         field so the swirl reads as a spinning storm, and a pair of
+         concentric eye-wall rings                                   */
       vec3 nP = normalize(vP);
       vec3 grsCenter = normalize(vec3(0.3, -0.18, 0.94));
       float grsU = dot(nP - grsCenter, normalize(vec3(-0.94, 0.0, 0.3)));
       float grsV = dot(nP - grsCenter, vec3(0.0, 1.0, 0.0));
       float grsDist = sqrt(grsU * grsU * 2.5 + grsV * grsV * 0.7) / 0.28;
       float grsMask = smoothstep(1.0, 0.0, grsDist);
-      float grsWarp = fbm3(nP * 12.0 + vec3(uTime * 0.02, 0.0, 0.0)) - 0.5;
-      float grsRing = exp(-pow((grsDist - 0.65) * 5.0, 2.0));
+
+      float grsAngle = uTime * 0.008; /* slow cyclone rotation */
+      mat2 grsRot = mat2(cos(grsAngle), -sin(grsAngle), sin(grsAngle), cos(grsAngle));
+      vec2 grsUV = grsRot * vec2(grsU, grsV);
+      /* rebuild the rotated 2-D offset back into 3-D using the same
+         tangent frame grsU/grsV were measured against, then use THAT
+         to offset the noise sample — the swirl texture itself spins */
+      vec3 grsOffset3D = grsUV.x * normalize(vec3(-0.94, 0.0, 0.3)) + grsUV.y * vec3(0.0, 1.0, 0.0);
+      float tangential = atan(grsV, grsU) + uTime * 0.012; /* tangential velocity field */
+      float grsWarp = fbm3(nP * 12.0 + grsOffset3D * 4.0 + vec3(uTime * 0.02, 0.0, 0.0)) - 0.5
+                    + sin(tangential * 3.0) * 0.15;
+      float grsRingA = exp(-pow((grsDist - 0.25) * 8.0, 2.0)) * 0.15;
+      float grsRingB = exp(-pow((grsDist - 0.55) * 6.0, 2.0)) * 0.10;
       vec3 grsCol = mix(vec3(0.72, 0.28, 0.18), vec3(0.88, 0.48, 0.30), grsWarp + 0.5);
       col = mix(col, grsCol, grsMask * 0.85);
-      col = mix(col, vec3(0.82, 0.52, 0.38), grsRing * 0.35);
+      col = mix(col, vec3(0.65, 0.22, 0.12), (grsRingA + grsRingB) * grsMask);
     `, 'vec3(0.88, 0.78, 0.60)');
     const saturnMat = gasGiantMat(/* glsl */ `
       float lat = vP.y / (length(vP) + 0.0001);
@@ -1015,11 +1296,32 @@
       float bv = lat * 6.0 + warp;
       vec3 col = mix(vec3(0.80, 0.72, 0.52), vec3(0.94, 0.88, 0.70), smoothstep(-0.4, 0.4, sin(bv)));
       col = mix(col, vec3(0.70, 0.60, 0.42), smoothstep(0.5, 0.8, sin(bv * 1.7)) * 0.3);
-    `, 'vec3(0.92, 0.86, 0.66)');
+    `, 'vec3(0.92, 0.86, 0.66)', /* glsl */ `
+      /* The ring casts a real shadow on the sunlit hemisphere: cast a
+         ray from this surface point toward the Sun (object-space) and
+         see where it crosses the ring plane (local y = 0)            */
+      float ringShadowMul = 1.0;
+      if (abs(L.y) > 0.0001) {
+        float tHit = -vP.y / L.y;
+        if (tHit > 0.0) {
+          vec3 ringHit = vP + L * tHit;
+          float rHit = length(ringHit.xz) / 0.56; /* Saturn's own radius */
+          float ringDensity = fbm(vec2(rHit * 30.0, 0.5)) * 0.6 + 0.4;
+          float ringOcclusion = smoothstep(0.0, 0.025, rHit - 1.5) * smoothstep(2.6, 2.55, rHit) * ringDensity * 0.75;
+          ringShadowMul = 1.0 - ringOcclusion;
+        }
+      }
+      lambert *= ringShadowMul;
+    `);
     const uranusMat = gasGiantMat(/* glsl */ `
-      float lat = vP.y / (length(vP) + 0.0001);
+      /* Uranus is tipped ~98° on its side — its bands run around the
+         axis that points at us/away from us, not the "up" axis, so
+         they read as roughly VERTICAL stripes rather than horizontal */
+      float lat = vP.z / (length(vP) + 0.0001);
       float bv = lat * 3.0 + (fbm3(vP * 1.2) - 0.5) * 0.15;
       vec3 col = mix(vec3(0.48, 0.82, 0.85), vec3(0.58, 0.90, 0.91), smoothstep(-0.6, 0.6, sin(bv)));
+      float streaks = fbm(vec2(vP.z * 8.0, vP.x * 3.0 + uTime * 0.005)) * 0.06;
+      col += vec3(streaks);
     `, 'vec3(0.68, 0.90, 0.90)');
     const neptuneMat = gasGiantMat(/* glsl */ `
       float lat = vP.y / (length(vP) + 0.0001);
@@ -1031,6 +1333,14 @@
       float spotD = length(normalize(vP) - spotCenter) / 0.20;
       float spot = smoothstep(1.0, 0.0, spotD);
       col = mix(col, vec3(0.05, 0.16, 0.44), spot * 0.35);
+      /* A real hexagonal polar vortex, à la Saturn's — but here on
+         Neptune's own pole, a faint honeycomb banding near abs(lat)>0.82 */
+      if (abs(lat) > 0.82) {
+        float hexAngle = atan(vP.z, vP.x) * 3.0 / 3.14159265;
+        float hexCell = fract(hexAngle);
+        float hexBand = abs(hexCell - 0.5) * 2.0;
+        col *= 0.85 + hexBand * 0.20;
+      }
     `, 'vec3(0.35, 0.55, 0.95)');
 
     /* Saturn: a true Cassini Division + a fainter Encke gap.
@@ -1132,30 +1442,66 @@
       return new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
     }
 
-    /* ── Simulated bloom: a soft additive glow shell behind each body —
-       no post-processing pipeline needed for a convincing halo ── */
-    function makeGlowHalo(radius, glowCol, opac, frExp) {
+    /* Earth alone gets a real (aesthetically-scaled) single-scattering
+       Rayleigh approximation instead of the generic sunlit/dark-side
+       blend every other atmosphere shell uses — this is what produces
+       the warm horizon band at sunrise/sunset a flat blue rim can't   */
+    function makeEarthAtmosphere(radius, atmCol, density) {
       const mat = new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
         uniforms: {
-          uFade: { value: 0 }, uGlowCol: { value: new THREE.Vector3(...glowCol) },
-          uOpac: { value: opac }, uFrExp: { value: frExp == null ? 5.0 : frExp },
+          uFade: { value: 0 },
+          uAtmCol: { value: new THREE.Vector3(...atmCol) },
+          uAtmDensity: { value: density == null ? 1.0 : density },
         },
         vertexShader: heroVS_plain,
         fragmentShader: /* glsl */ `
           varying vec3 vN, vWP, vP;
-          uniform vec3 uGlowCol;
-          uniform float uFade, uOpac, uFrExp;
+          uniform vec3 uAtmCol;
+          uniform float uFade, uAtmDensity;
           void main() {
             vec3 V = normalize(cameraPosition - vWP);
-            vec3 N = normalize(-vN); /* BackSide */
-            float fr = pow(1.0 - max(dot(N, V), 0.0), uFrExp);
-            gl_FragColor = vec4(uGlowCol, fr * uOpac * uFade);
+            vec3 N = normalize(-vN);
+            float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5);
+            vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP);
+
+            /* Rayleigh phase function: 3/4 (1 + cos^2(sun angle)).
+               The (5.8, 13.5, 33.1) constants are the real relative
+               per-wavelength scattering strengths (this is WHY the
+               sky is blue — short/blue wavelengths scatter ~5.7x more
+               than red); normalized to a unit-ish vector so they set
+               the HUE while the phase function alone sets brightness —
+               used at their literal ~1e-5 physical scale they render
+               as black, so this keeps the ratio and drops the scale. */
+            float mu = dot(N, L);
+            float rayleigh = 0.75 * (1.0 + mu * mu);
+            vec3 rayleighRatio = normalize(vec3(5.8, 13.5, 33.1));
+            vec3 scatter = uAtmCol * rayleighRatio * rayleigh * fr * 2.0 * uAtmDensity;
+
+            /* Sunrise/sunset: near the terminator the light path
+               through atmosphere is longest — a warm horizon glow.
+               smoothstep (not a hard step) so the band fades in
+               instead of cutting off as a visible ring on the sphere */
+            scatter += vec3(0.9, 0.4, 0.1) * 0.3 * exp(-abs(mu) * 8.0) * fr * uAtmDensity
+                     * smoothstep(0.22, 0.15, abs(mu));
+
+            vec3 refl = reflect(-V, N);
+            float limbSun = max(dot(refl, L), 0.0);
+            scatter += uAtmCol * pow(limbSun, 5.0) * fr * 0.55 * uAtmDensity;
+
+            float alpha = clamp(fr * 1.3, 0.0, 1.0) * uFade;
+            gl_FragColor = vec4(scatter, alpha);
           }
         `,
       });
-      return new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 32), mat);
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
     }
+
+    /* NOTE: planets no longer get a fake BackSide "glow halo" shell —
+       real two-pass bloom (see the POST-PROCESSING block near the top)
+       now provides that glow honestly, off the actual bright pixels
+       (Sun, corona, atmosphere rims, ring highlights, meteor heads)
+       instead of a hand-faked Fresnel sphere behind every body.     */
 
     /* ── Assemble the 8 hero bodies ──
        [name, radius, mat, extra] */
@@ -1202,12 +1548,15 @@
     const heroStages = [];
     const ringMats = [];
     const atmoMats = [];
-    const glowMats = [];
 
     heroDefs.forEach(([name, mat, extra]) => {
       const r = HERO_R[name];
       const group = new THREE.Group();
-      const segs = r > 0.5 ? 96 : 80;
+      /* Quality bar: rocky/terrestrial bodies (where craters/terrain
+         detail is closest to camera at full presence) get the highest
+         tessellation; the gas giants — smooth, cloud-only surfaces —
+         hold plenty of detail at a lighter 96                        */
+      const segs = ['Mercury', 'Mars', 'Venus', 'Earth', 'Neptune'].includes(name) ? 128 : 96;
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, segs, segs), mat);
       group.add(mesh);
       const mats = [mat];
@@ -1219,38 +1568,29 @@
         const rc = extra.ring;
         const ring = makeRing(r * rc.inner, r * rc.outer, rc.color, rc.opac, rc.gaps);
         ring.rotation.x = rc.tilt;
+        markBloom(ring); /* icy ring highlights carry the "glow" role now */
         group.add(ring);
         mats.push(ring.material);
         ringMats.push(ring.material);
       }
       if (extra.atmos) {
+        /* Real bloom now does the glowing — mark just the thin
+           atmosphere shell (not the whole planet disc) so only its
+           bright limb blooms, never the flat lit dayside underneath */
         extra.atmos.forEach(a => {
-          const atmo = makeAtmosphere(r * a.mul, a.col, a.density);
+          const atmo = (name === 'Earth')
+            ? makeEarthAtmosphere(r * a.mul, a.col, a.density)
+            : makeAtmosphere(r * a.mul, a.col, a.density);
+          markBloom(atmo);
           group.add(atmo);
           mats.push(atmo.material);
           atmoMats.push(atmo.material);
         });
       }
-      if (extra.glow) {
-        /* Saturn's halo needs to reach past the ring system, not just
-           the planet body — bigger radius, softer so it doesn't glare */
-        const glowRad  = (name === 'Saturn') ? r * 2.8 : r * 1.5;
-        const glowOpac = (name === 'Saturn') ? 0.06   : 0.10;
-        const glowExp  = (name === 'Saturn') ? 4.0    : 5.0;
-        const glow = makeGlowHalo(glowRad, extra.glow, glowOpac, glowExp);
-        group.add(glow);
-        mats.push(glow.material);
-        glowMats.push(glow.material);
-      }
       heroRoot.add(group);
       heroStages.push({ group, mats });
     });
 
-    /* The Sun's own glow halo — much bigger and stronger than a
-       planet's, and driven by uSunFade rather than the per-stage uFade */
-    const sunGlow = makeGlowHalo(4.5, [1.0, 0.55, 0.1], 0.20, 3.0);
-    sunGroup.add(sunGlow);
-    sunMats.push(sunGlow.material);
 
     /* ── Earth's Moon — orbits at a real 5° inclination, cratered and
        airless, fades in lockstep with the Earth stage ── */
@@ -1295,14 +1635,14 @@
           vec3 lit = base * (0.030 + lambert * 1.15);
           float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5);
           lit += vec3(0.50, 0.50, 0.52) * fr * 0.025; /* almost no atmosphere */
-          lit += (grain(gl_FragCoord.xy, uTime) * 0.012) * (0.3 + lambert);
+          lit += (grain(gl_FragCoord.xy, uTime) * 0.008) * (0.3 + lambert);
           gl_FragColor = vec4(lit, uFade);
         }
       `,
     });
     const moonPivot = new THREE.Group();
     moonPivot.rotation.z = 0.09; /* ~5° orbital inclination */
-    const moonMesh2 = new THREE.Mesh(new THREE.SphereGeometry(0.13, 48, 48), moonMat2);
+    const moonMesh2 = new THREE.Mesh(new THREE.SphereGeometry(0.13, 64, 64), moonMat2);
     moonMesh2.position.x = 0.88;
     moonPivot.add(moonMesh2);
     heroStages[2].group.add(moonPivot); /* index 2 = Earth */
@@ -1321,6 +1661,62 @@
       { x: -0.55, y: -0.10 },
       { x:  0.20, y: -0.45 },
     ];
+
+    /* Camera's own quarter-arc per planet — a different, deliberate
+       angle of attack for each approach, distinct from HERO_OFFSETS
+       (which moves the PLANET off-center; this moves the CAMERA)    */
+    const APPROACH_OFFSET = [
+      { x:  1.2, y:  0.6 },
+      { x: -1.0, y:  0.8 },
+      { x:  0.9, y: -0.7 },
+      { x: -1.1, y: -0.5 },
+      { x:  0.7, y:  1.0 },
+      { x: -0.8, y: -0.9 },
+      { x:  1.0, y: -0.4 },
+      { x: -0.6, y:  0.9 },
+    ];
+
+    /* ── Speed lines: 20 radial segments that streak outward from
+       center right at the start of each approach, like a warp punch */
+    const SPEED_LINE_COUNT = 20;
+    const speedLinePos = new Float32Array(SPEED_LINE_COUNT * 6);
+    for (let i = 0; i < SPEED_LINE_COUNT; i++) {
+      const a = (i / SPEED_LINE_COUNT) * Math.PI * 2;
+      speedLinePos[i * 6]     = Math.cos(a) * 0.05; speedLinePos[i * 6 + 1] = Math.sin(a) * 0.05; speedLinePos[i * 6 + 2] = 0;
+      speedLinePos[i * 6 + 3] = Math.cos(a) * 0.06; speedLinePos[i * 6 + 4] = Math.sin(a) * 0.06; speedLinePos[i * 6 + 5] = 0;
+    }
+    const speedLineGeo = new THREE.BufferGeometry();
+    speedLineGeo.setAttribute('position', new THREE.BufferAttribute(speedLinePos, 3));
+    const speedLineMat = new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+    });
+    const speedLines = new THREE.LineSegments(speedLineGeo, speedLineMat);
+    speedLines.frustumCulled = false;
+    markBloom(speedLines); /* a warp-punch effect should bloom */
+    camera.add(speedLines); /* fixed to the camera — always screen-centered */
+    scene.add(camera); /* a camera must be in the scene graph for its children to render */
+
+    function updateSpeedLines(fracP) {
+      const active = fracP < 0.15;
+      const prog = active ? fracP / 0.15 : 0;
+      const len = prog * 2.5;
+      const posAttr = speedLineGeo.attributes.position;
+      for (let i = 0; i < SPEED_LINE_COUNT; i++) {
+        const a = (i / SPEED_LINE_COUNT) * Math.PI * 2;
+        const dx = Math.cos(a), dy = Math.sin(a);
+        posAttr.array[i * 6]     = dx * 0.05;
+        posAttr.array[i * 6 + 1] = dy * 0.05;
+        posAttr.array[i * 6 + 3] = dx * (0.05 + len);
+        posAttr.array[i * 6 + 4] = dy * (0.05 + len);
+      }
+      posAttr.needsUpdate = true;
+      speedLineMat.opacity = active ? (1.0 - prog) * 0.35 : 0;
+      /* place the whole streak system a couple units in front of the
+         camera lens, at a scale small enough to read as a screen-space
+         overlay rather than a 3-D object floating in the scene       */
+      speedLines.position.set(0, 0, -2);
+      speedLines.scale.setScalar(1.4);
+    }
 
     /* ═══════════════════════════════════════════
        STAGE CONTENT + INFO PANEL
@@ -1518,6 +1914,8 @@
       camera.fov = restFov();
       camera.updateProjectionMatrix();
       renderer.setSize(W(), H());
+      resizeBloomTargets();
+      resizeFlareCanvas();
       const w = window.innerWidth, h = window.innerHeight;
       if (w !== vpWLast || Math.abs(h - vpH) > 120) { vpH = h; }
       vpWLast = w;
@@ -1614,7 +2012,7 @@
     const timedMats = [
       bgMat, mercuryMat, marsMat, venusMat, earthMat, cloudMat,
       jupiterMat, saturnMat, uranusMat, neptuneMat, ...ringMats,
-      sunBodyMat, moonMat2,
+      sunBodyMat, moonMat2, heroStarMat,
     ];
     /* JS-side smoothstep — used for the Sun's fade so the shaders
        just receive a plain float uniform, no edge-order ambiguity */
@@ -1782,22 +2180,35 @@
       const targetFov = restFov() - dive * 4;
       camZ += (targetZ - camZ) * 0.10;
       camFov += (targetFov - camFov) * 0.10;
-      camera.position.z = camZ + Math.sin(t * 0.15) * 0.05;
       if (Math.abs(camera.fov - camFov) > 0.01) { camera.fov = camFov; camera.updateProjectionMatrix(); }
 
-      /* Cinematic micro-breathing — organic, not robotic. Assigned
-         (not +=) on x/y: nothing else drives those axes, so
-         accumulating onto them every frame would drift the camera
-         off-axis forever instead of gently oscillating in place.
-         z is safe to += since it was freshly assigned just above.   */
-      camera.position.x = Math.sin(t * 0.23) * 0.007;
-      camera.position.y = Math.cos(t * 0.17) * 0.005;
-      camera.position.z += Math.sin(t * 0.31) * 0.003;
+      /* Cinematic arc: the camera doesn't just push straight in on Z,
+         it swings through a quarter-arc unique to whichever planet is
+         being approached — a different angle of attack every time    */
+      const arc = APPROACH_OFFSET[nextIndex];
+      const arcX = arc.x * (1 - growEase) * 0.8;
+      const arcY = arc.y * (1 - growEase) * 0.5;
 
-      renderer.render(scene, camera);
+      /* Cinematic micro-breathing — organic, not robotic. Assigned
+         (not +=): nothing else drives these axes per-frame, so
+         accumulating every frame would drift the camera off-axis
+         forever instead of gently oscillating in place.              */
+      camera.position.x = arcX + Math.sin(t * 0.23) * 0.007;
+      camera.position.y = arcY + Math.cos(t * 0.17) * 0.005;
+      camera.position.z = camZ + Math.sin(t * 0.31) * 0.003 + Math.sin(t * 0.15) * 0.05;
+      /* The arc moves the camera a real distance off-axis (unlike the
+         old pure-Z push), so it has to re-aim at the origin every
+         frame — otherwise the swing reads as a sideways strafe past
+         the planet instead of an arc AROUND it while staying framed */
+      camera.lookAt(0, 0, 0);
+
+      /* Speed lines: a brief radial warp-streak right at the start of
+         each approach (fracP < 0.15), like a fast scroll punching in */
+      updateSpeedLines(fracP);
+
+      renderWithBloom();
+      drawLensFlare(sunFade);
     })();
 
   })(); /* end IIFE */
   </script>
-</body>
-</html>
