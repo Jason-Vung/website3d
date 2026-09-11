@@ -666,6 +666,79 @@
       });
     }
 
+    /* ═══════════════════════════════════════════
+       SUN — the actual light source, always somewhere
+       out in the depths. Not a hero stage: it never
+       becomes a focused planet, it just recedes/returns
+       as uSunFade tracks how far into the journey we are.
+    ═══════════════════════════════════════════ */
+    const SUN_POS = new THREE.Vector3(0, 0, -18);
+
+    const sunBodyMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 }, uSunFade: { value: 1 } },
+      vertexShader: heroVS_plain,
+      fragmentShader: /* glsl */ `
+        varying vec3 vN, vWP, vP;
+        uniform float uTime, uSunFade;
+        ${COMMON}
+        void main() {
+          vec3 col = mix(vec3(1.0, 0.55, 0.05), vec3(1.0, 0.92, 0.45),
+                          fbm3(vP * 3.0 + vec3(uTime * 0.04, 0.0, 0.0)));
+          col += vec3(1.0, 0.85, 0.4) * cellular3(vP * 8.0).x * 0.12;
+          /* It IS the light — no lighting equation, just emission */
+          gl_FragColor = vec4(col * 2.2, uSunFade);
+        }
+      `,
+    });
+    const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(1.2, 64, 64), sunBodyMat);
+
+    function makeCoronaShell(radius, innerCol, outerCol, opacFactor) {
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
+        uniforms: { uFade: { value: 1 }, uShellR: { value: radius } },
+        vertexShader: heroVS_plain,
+        fragmentShader: /* glsl */ `
+          varying vec3 vN, vWP, vP;
+          uniform float uFade, uShellR;
+          void main() {
+            float dist = length(vP) / uShellR;
+            float fr = pow(max(0.0, 1.0 - dist), 2.5);
+            vec3 coronaCol = mix(${innerCol}, ${outerCol}, dist);
+            gl_FragColor = vec4(coronaCol, fr * ${opacFactor} * uFade);
+          }
+        `,
+      });
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 48), mat);
+    }
+    const coronaShells = [
+      makeCoronaShell(1.3, 'vec3(1.0, 0.6, 0.1)', 'vec3(0.8, 0.3, 0.0)', 0.08),
+      makeCoronaShell(1.7, 'vec3(1.0, 0.6, 0.1)', 'vec3(0.8, 0.3, 0.0)', 0.08),
+      makeCoronaShell(2.4, 'vec3(1.0, 0.4, 0.05)', 'vec3(1.0, 0.4, 0.05)', 0.04),
+    ];
+
+    const sunGroup = new THREE.Group();
+    sunGroup.position.copy(SUN_POS);
+    sunGroup.add(sunMesh);
+    coronaShells.forEach(s => sunGroup.add(s));
+    heroRoot.add(sunGroup);
+
+    /* Four solar flares orbiting the limb — simple animated point sprites */
+    const sunFlares = [];
+    for (let i = 0; i < 4; i++) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
+      const mat = new THREE.PointsMaterial({
+        color: 0xff6600, size: 0.35, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+      });
+      const pts = new THREE.Points(geo, mat);
+      heroRoot.add(pts);
+      sunFlares.push({ pts, mat, i });
+    }
+
+    const sunMats = [sunBodyMat, ...coronaShells.map(s => s.material)];
+
     /* ── Mercury & Mars — shared "rocky, cratered" body ── */
     const rockyCraterCalls = /* glsl */ `
       craterBowl(n, normalize(vec3( 0.55, 0.35, 0.70)), 0.34, 1.0) +
@@ -703,7 +776,7 @@
       void main() {
         vec3 N = normalize(vN);
         vec3 V = normalize(cameraPosition - vWP);
-        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+        vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
         float lambert = max(dot(N, L), 0.0);
         vec3 n = normalize(vP);
         vec3 p = vP;
@@ -757,7 +830,7 @@
       void main() {
         vec3 N = normalize(vN);
         vec3 V = normalize(cameraPosition - vWP);
-        vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+        vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
         float lambert = max(dot(N, L), 0.0);
         vec3 p = vP;
         vec3 warp = vec3(
@@ -819,7 +892,7 @@
       void main() {
         vec3 N = normalize(vN);
         vec3 V = normalize(cameraPosition - vWP);
-        vec3 L = normalize(vec3(1.2, 0.5, 1.3));
+        vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
         float lambert = max(dot(N, L), 0.0);
         vec3 p = vP;
         ${earthLandCalc}
@@ -860,7 +933,7 @@
       ${COMMON}
       void main() {
         vec3 N = normalize(vN);
-        vec3 L = normalize(vec3(1.2, 0.5, 1.3));
+        vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
         float lambert = max(dot(N, L), 0.0);
         vec3 p = vP;
         ${earthCloudCalc}
@@ -881,12 +954,21 @@
         void main() {
           vec3 N = normalize(vN);
           vec3 V = normalize(cameraPosition - vWP);
-          vec3 L = normalize(vec3(1.1, 0.6, 1.4));
+          vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
           float lambert = max(dot(N, L), 0.0);
           ${colorExpr}
+          /* Limb darkening: the edge of a gas giant reads darker in
+             real photography — this alone kills the "flat disc" look */
+          float limb = pow(max(dot(N, V), 0.0), 0.45);
+          col *= mix(0.45, 1.0, limb);
           vec3 lit = col * (0.055 + lambert * 1.05);
           float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
           lit += ${rimCol} * fr * 0.22;
+          /* Phase-dependent atmospheric glow: backlit crescent
+             brightens at the rim, like real spacecraft photography */
+          float phaseAngle = dot(L, V);
+          float backlit = smoothstep(0.0, -0.6, phaseAngle);
+          lit += col * backlit * fr * 0.4;
           lit += (grain(gl_FragCoord.xy, uTime) * 0.011) * (0.3 + lambert);
           gl_FragColor = vec4(lit, uFade);
         }
@@ -900,10 +982,20 @@
       float b1 = sin(bv); float b2 = sin(bv * 2.3 + 1.0);
       vec3 col = mix(vec3(0.76, 0.60, 0.42), vec3(0.94, 0.84, 0.66), smoothstep(-0.3, 0.3, b1));
       col = mix(col, vec3(0.58, 0.40, 0.26), smoothstep(0.4, 0.7, b2) * 0.5);
-      vec3 spotCenter = normalize(vec3(0.3, -0.15, 0.94));
-      float spotD = length(normalize(vP) - spotCenter) / 0.30;
-      float spot = smoothstep(1.0, 0.0, spotD);
-      col = mix(col, vec3(0.70, 0.30, 0.20), spot * 0.85);
+      /* Great Red Spot: a real 3-D swirling ellipse, not a round blob —
+         its own local tangent frame, an inner rotating warp, and a
+         slightly brighter ring right at its edge                    */
+      vec3 nP = normalize(vP);
+      vec3 grsCenter = normalize(vec3(0.3, -0.18, 0.94));
+      float grsU = dot(nP - grsCenter, normalize(vec3(-0.94, 0.0, 0.3)));
+      float grsV = dot(nP - grsCenter, vec3(0.0, 1.0, 0.0));
+      float grsDist = sqrt(grsU * grsU * 2.5 + grsV * grsV * 0.7) / 0.28;
+      float grsMask = smoothstep(1.0, 0.0, grsDist);
+      float grsWarp = fbm3(nP * 12.0 + vec3(uTime * 0.02, 0.0, 0.0)) - 0.5;
+      float grsRing = exp(-pow((grsDist - 0.65) * 5.0, 2.0));
+      vec3 grsCol = mix(vec3(0.72, 0.28, 0.18), vec3(0.88, 0.48, 0.30), grsWarp + 0.5);
+      col = mix(col, grsCol, grsMask * 0.85);
+      col = mix(col, vec3(0.82, 0.52, 0.38), grsRing * 0.35);
     `, 'vec3(0.88, 0.78, 0.60)');
     const saturnMat = gasGiantMat(/* glsl */ `
       float lat = vP.y / (length(vP) + 0.0001);
@@ -948,15 +1040,87 @@
           ${COMMON}
           void main() {
             float r = length(vP.xy);
-            float t = clamp((r - uInner) / (uOuter - uInner), 0.0, 1.0);
-            float band = fbm(vec2(t * 24.0, 0.0));
-            float edge = smoothstep(0.0, 0.04, t) * smoothstep(1.0, 0.94, t);
-            vec3 col = mix(uCol * 0.7, uCol * 1.25, band);
-            gl_FragColor = vec4(col, edge * (0.30 + band * 0.5) * uOpac * uFade);
+            float rNorm = clamp((r - uInner) / (uOuter - uInner), 0.0, 1.0);
+
+            /* Cassini Division: a real dark gap carved into the ring */
+            float cassini = smoothstep(0.44, 0.47, rNorm) * (1.0 - smoothstep(0.47, 0.50, rNorm));
+
+            /* Many narrow bands, layered fbm — not one flat gradient */
+            float bandsN = fbm(vec2(rNorm * 28.0, 0.0)) * 0.5 + 0.5;
+            float detail  = fbm(vec2(rNorm * 82.0, 0.3)) * 0.25 + 0.75;
+            float radial  = bandsN * detail;
+
+            /* Anisotropic (Mie-style) scatter: ice particles backscatter
+               toward the Sun — the ring's true world-facing normal is
+               its local +Z axis (RingGeometry lies flat in XY), rotated
+               into world space so this reacts correctly to the tilt   */
+            vec3 ringNormalWorld = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
+            vec3 V = normalize(cameraPosition - (modelMatrix * vec4(vP, 1.0)).xyz);
+            float scatter = pow(max(dot(ringNormalWorld, V), 0.0), 0.3);
+
+            vec3 col = mix(uCol * 0.55, uCol * 1.4, radial);
+            col += uCol * 0.6 * (1.0 - scatter) * radial;
+
+            float edge = smoothstep(0.0, 0.03, rNorm) * smoothstep(1.0, 0.95, rNorm);
+            float alpha = edge * (0.25 + radial * 0.55) * (1.0 - cassini * 0.88) * uOpac * uFade;
+            gl_FragColor = vec4(col, alpha);
           }
         `,
       });
       return new THREE.Mesh(new THREE.RingGeometry(innerR, outerR, 96), mat);
+    }
+
+    /* ── Volumetric atmosphere shell (rocky bodies + Earth only —
+       gas giants get their own limb-darkening/backlit treatment
+       baked straight into gasGiantMat instead) ── */
+    function makeAtmosphere(radius, atmCol, thin) {
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
+        uniforms: {
+          uFade: { value: 0 },
+          uAtmCol: { value: new THREE.Vector3(...atmCol) },
+          uThin: { value: thin == null ? 1.0 : thin },
+        },
+        vertexShader: heroVS_plain,
+        fragmentShader: /* glsl */ `
+          varying vec3 vN, vWP, vP;
+          uniform vec3 uAtmCol;
+          uniform float uFade, uThin;
+          void main() {
+            vec3 V = normalize(cameraPosition - vWP);
+            vec3 N = normalize(-vN); /* BackSide: normal points inward */
+            float fr = pow(1.0 - max(dot(N, V), 0.0), 3.5) * uThin;
+            vec3 L = normalize(vec3(0.0, 0.0, -18.0) - vWP); /* real Sun position */
+            float sunlit = max(dot(-N, L), 0.0);
+            vec3 scatter = uAtmCol * (fr * (0.15 + sunlit * 0.85));
+            float limbSun = max(dot(reflect(V, N), L), 0.0);
+            scatter += uAtmCol * pow(limbSun, 6.0) * fr * 0.5;
+            gl_FragColor = vec4(scatter, clamp(fr * 1.2, 0.0, 1.0) * uFade);
+          }
+        `,
+      });
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 64), mat);
+    }
+
+    /* ── Simulated bloom: a soft additive glow shell behind each body —
+       no post-processing pipeline needed for a convincing halo ── */
+    function makeGlowHalo(radius, glowCol, opac) {
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
+        uniforms: { uFade: { value: 0 }, uGlowCol: { value: new THREE.Vector3(...glowCol) }, uOpac: { value: opac } },
+        vertexShader: heroVS_plain,
+        fragmentShader: /* glsl */ `
+          varying vec3 vN, vWP, vP;
+          uniform vec3 uGlowCol;
+          uniform float uFade, uOpac;
+          void main() {
+            vec3 V = normalize(cameraPosition - vWP);
+            float fr = pow(1.0 - max(dot(normalize(-vN), V), 0.0), 4.0);
+            gl_FragColor = vec4(uGlowCol, fr * uOpac * uFade);
+          }
+        `,
+      });
+      return new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 32), mat);
     }
 
     /* ── Assemble the 8 hero bodies ──
@@ -966,18 +1130,20 @@
       Jupiter: 0.62, Saturn: 0.56, Uranus: 0.50, Neptune: 0.48,
     };
     const heroDefs = [
-      ['Mercury', mercuryMat, null],
-      ['Venus',   venusMat,   null],
-      ['Earth',   earthMat,   { cloud: true }],
-      ['Mars',    marsMat,    null],
-      ['Jupiter', jupiterMat, null],
-      ['Saturn',  saturnMat,  { ring: { inner: 1.5, outer: 2.6, color: [0.86, 0.80, 0.60], opac: 0.92, tilt: Math.PI / 2.6 } }],
-      ['Uranus',  uranusMat,  { ring: { inner: 1.55, outer: 1.82, color: [0.74, 0.88, 0.90], opac: 0.45, tilt: 1.45 } }],
-      ['Neptune', neptuneMat, null],
+      ['Mercury', mercuryMat, { glow: null } ],
+      ['Venus',   venusMat,   { atmo: { col: [1.0, 0.65, 0.2] }, glow: [1.0, 0.7, 0.3] }],
+      ['Earth',   earthMat,   { cloud: true, atmo: { col: [0.18, 0.42, 1.0] }, glow: [0.2, 0.5, 1.0] }],
+      ['Mars',    marsMat,    { atmo: { col: [0.75, 0.38, 0.18], thin: 0.4 }, glow: [0.8, 0.4, 0.2] }],
+      ['Jupiter', jupiterMat, { glow: [0.85, 0.72, 0.55] }],
+      ['Saturn',  saturnMat,  { ring: { inner: 1.5, outer: 2.6, color: [0.86, 0.80, 0.60], opac: 0.92, tilt: Math.PI / 2.6 }, glow: [0.90, 0.84, 0.62] }],
+      ['Uranus',  uranusMat,  { ring: { inner: 1.55, outer: 1.82, color: [0.74, 0.88, 0.90], opac: 0.45, tilt: 1.45 }, glow: [0.5, 0.85, 0.88] }],
+      ['Neptune', neptuneMat, { glow: [0.2, 0.4, 0.9] }],
     ];
     const N = heroDefs.length;
     const heroStages = [];
     const ringMats = [];
+    const atmoMats = [];
+    const glowMats = [];
 
     heroDefs.forEach(([name, mat, extra]) => {
       const r = HERO_R[name];
@@ -997,6 +1163,18 @@
         group.add(ring);
         mats.push(ring.material);
         ringMats.push(ring.material);
+      }
+      if (extra && extra.atmo) {
+        const atmo = makeAtmosphere(r * 1.08, extra.atmo.col, extra.atmo.thin);
+        group.add(atmo);
+        mats.push(atmo.material);
+        atmoMats.push(atmo.material);
+      }
+      if (extra && extra.glow) {
+        const glow = makeGlowHalo(r * 1.4, extra.glow, 0.12);
+        group.add(glow);
+        mats.push(glow.material);
+        glowMats.push(glow.material);
       }
       heroRoot.add(group);
       heroStages.push({ group, mats });
@@ -1263,7 +1441,14 @@
     const timedMats = [
       bgMat, mercuryMat, marsMat, venusMat, earthMat, cloudMat,
       jupiterMat, saturnMat, uranusMat, neptuneMat, ...ringMats,
+      sunBodyMat,
     ];
+    /* JS-side smoothstep — used for the Sun's fade so the shaders
+       just receive a plain float uniform, no edge-order ambiguity */
+    function smoothstepJS(edge0, edge1, x) {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    }
 
     let smoothScrollY = window.scrollY;
     let floorWorld = 0;
@@ -1359,6 +1544,21 @@
       });
 
       bgMat.uniforms.uWorldT.value = wp;
+
+      /* Sun: bright and prominent right as the loop restarts at
+         Mercury, fading into the depths as the journey moves on —
+         then returning every time the loop wraps back around      */
+      const sunFade = smoothstepJS(2.0, 0.0, wp);
+      sunBodyMat.uniforms.uSunFade.value = sunFade;
+      coronaShells.forEach(s => { s.material.uniforms.uFade.value = sunFade; });
+      sunFlares.forEach(({ pts, mat, i }) => {
+        pts.position.set(
+          SUN_POS.x + Math.sin(t * 0.3 + i * Math.PI / 2) * 1.25,
+          SUN_POS.y + Math.cos(t * 0.2 + i * Math.PI / 2) * 1.25,
+          SUN_POS.z
+        );
+        mat.opacity = (0.5 + 0.5 * Math.sin(t + i)) * sunFade;
+      });
 
       timedMats.forEach(m => { if (m.uniforms?.uTime) m.uniforms.uTime.value = t; });
 
