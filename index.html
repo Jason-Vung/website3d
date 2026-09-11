@@ -2,16 +2,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Crystal Solar System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@300;500&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Space+Grotesk:wght@300;400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
   <style>
+    /* ═══════════════════════════════════════════════════
+       DESIGN TOKENS — 70% igloo.inc cool-gray minimal UI,
+       30% space (Vietnamese planet facts + WebGL journey)
+    ═══════════════════════════════════════════════════ */
+    :root {
+      --bg:       #0b0d12;   /* cool charcoal-black — NOT warm purple */
+      --surface:  #10131a;
+      --surface2: #181c26;
+      --gray-lo:  #b6bac5;
+      --gray-mid: #7c8494;
+      --gray-hi:  #383e4e;
+      --accent:   #b6bac5;   /* updated per-frame by JS to the current planet's accent */
+      --font-display: 'Cinzel', serif;
+      --font-ui:      'Space Grotesk', sans-serif;
+      --font-mono:    'DM Mono', monospace;
+    }
     /* ═══════════════════════════════════════════════════
        BASE STYLES
     ═══════════════════════════════════════════════════ */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      background: #010008;
+      background: var(--bg);
       width: 100vw;
       overflow-x: hidden;
+      font-family: var(--font-ui);
     }
     canvas {
       display: block;
@@ -39,45 +56,48 @@
     /* ── Hint text ── */
     .hint {
       position: fixed;
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(22px + env(safe-area-inset-bottom, 0px));
       left: 50%;
       transform: translateX(-50%);
-      font: 300 9px/1 'Cinzel', serif;
-      letter-spacing: .28em;
-      text-transform: uppercase;
-      color: rgba(180, 140, 255, .22);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .10em;
+      color: var(--gray-mid);
+      opacity: .35;
       white-space: nowrap;
       pointer-events: none;
       z-index: 5;
     }
 
-    /* ── Sound toggle button ── */
+    /* ── Sound toggle: plain monospace text, no box ── */
     #sndBtn {
       position: fixed;
-      top: calc(18px + env(safe-area-inset-top, 0px));
+      top: calc(22px + env(safe-area-inset-top, 0px));
       right: calc(20px + env(safe-area-inset-right, 0px));
-      font: 300 9px/1 'Cinzel', serif;
-      letter-spacing: .22em;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .12em;
       text-transform: uppercase;
-      color: rgba(180, 150, 255, .32);
+      color: var(--gray-mid);
       cursor: pointer;
       user-select: none;
-      border: 1px solid rgba(180, 150, 255, .18);
-      padding: 6px 11px;
-      transition: color .3s, border-color .3s;
+      border: none;
+      background: none;
+      padding: 0;
+      transition: color .3s;
       z-index: 20;
     }
     @media (max-width: 640px), (pointer: coarse) {
-      #sndBtn { padding: 10px 14px; font-size: 10px; }
+      #sndBtn { font-size: 12px; padding: 8px; }
     }
-    #sndBtn:hover { color: rgba(210, 185, 255, .6); border-color: rgba(210, 185, 255, .38); }
-    #sndBtn.on   { color: rgba(140, 210, 255, .6); border-color: rgba(140, 210, 255, .35); }
+    #sndBtn:hover { color: var(--gray-lo); }
+    #sndBtn.on   { color: var(--accent); }
 
     /* ── Intro veil (fade-in overlay) ── */
     #veil {
       position: fixed;
       inset: 0;
-      background: #010008;
+      background: var(--bg);
       pointer-events: none;
       z-index: 60;
       opacity: 1;
@@ -85,81 +105,91 @@
     }
 
     /* ═══════════════════════════════════════════════════
-       INFO PANEL — right side, previews whichever planet
-       is being travelled toward
+       INFO PANEL — left side, flat/opaque igloo-style card,
+       previews whichever planet is being travelled toward
     ═══════════════════════════════════════════════════ */
     #infoPanel {
-      --accent: 200, 190, 230;
       position: fixed;
       top: 50%;
-      right: 22px;
+      left: 0;
       transform: translateY(-50%);
-      width: min(258px, 34vw);
-      padding: 18px 18px 16px;
-      background: linear-gradient(160deg, rgba(30, 14, 54, .38), rgba(8, 4, 22, .42));
-      border: 1px solid rgba(var(--accent), .18);
-      border-radius: 10px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 0 26px rgba(var(--accent), .10);
-      color: rgba(225, 220, 245, .82);
-      font-family: 'Cinzel', serif;
+      width: min(240px, 28vw);
+      padding: 28px 24px;
+      background: var(--surface);         /* flat, no blur, no gradient */
+      border-right: 1px solid var(--gray-hi);
+      border-top: 1px solid var(--gray-hi);
+      border-bottom: 1px solid var(--gray-hi);
+      border-radius: 0 4px 4px 0;
+      color: var(--gray-lo);
       z-index: 15;
       pointer-events: none;
     }
     #ipTrack {
       height: 2px; width: 100%;
-      background: rgba(255, 255, 255, .08);
-      border-radius: 2px; overflow: hidden; margin-bottom: 10px;
+      background: var(--gray-hi);
+      overflow: hidden; margin-bottom: 14px;
     }
-    #ipTrackFill { height: 100%; width: 0%; border-radius: 2px; background: rgb(var(--accent)); }
+    #ipTrackFill { height: 100%; width: 0%; background: var(--accent); }
     .ip-label {
-      font: 300 10px/1 'Cinzel', serif; letter-spacing: .2em; text-transform: uppercase;
-      color: rgba(var(--accent), .6); margin-bottom: 10px;
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--accent); opacity: .7; margin-bottom: 14px;
     }
-    .ip-index { font: 300 10px/1 'Cinzel', serif; letter-spacing: .2em; color: rgba(200, 195, 220, .5); margin-bottom: 10px; }
+    .ip-index { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--gray-mid); margin-bottom: 14px; }
     .ip-index .ip-sep { opacity: .5; margin: 0 2px; }
-    #ipTitle { font: 500 20px/1.15 'Cinzel', serif; letter-spacing: .04em; color: rgba(235, 225, 255, .96); margin-bottom: 4px; }
-    #ipSub { font: 300 9.5px/1 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(200, 195, 230, .55); margin-bottom: 12px; }
-    #ipDesc { font: 300 12px/1.55 system-ui, sans-serif; color: rgba(220, 215, 240, .72); margin-bottom: 12px; letter-spacing: .01em; }
-    #ipFacts { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    #ipFacts li { font: 300 11px/1.4 system-ui, sans-serif; color: rgba(200, 205, 230, .68); padding-left: 12px; position: relative; }
-    #ipFacts li::before {
-      content: ''; position: absolute; left: 0; top: 6px; width: 4px; height: 4px;
-      border-radius: 50%; background: rgba(var(--accent), .65);
+    #ipTitle {
+      font-family: var(--font-display); font-weight: 400;
+      font-size: clamp(14px, 2.2vw, 20px); letter-spacing: .12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 4px;
     }
-    .ip-dots { display: flex; flex-wrap: wrap; gap: 6px; max-width: 130px; }
-    .ip-dots .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(180, 150, 255, .22); transition: background .3s, transform .3s; }
-    .ip-dots .dot.active { background: rgb(var(--accent)); transform: scale(1.25); }
+    #ipSub { font-family: var(--font-ui); font-weight: 300; font-size: 10px; letter-spacing: .04em; color: var(--gray-mid); margin-bottom: 20px; }
+    #ipFacts { list-style: none; display: flex; flex-direction: column; margin-bottom: 4px; }
+    #ipFacts li {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 8px 0; border-bottom: 1px solid rgba(56, 62, 78, .6);
+    }
+    #ipFacts li .stat-label {
+      font-family: var(--font-ui); font-weight: 300; font-size: 10px; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--gray-mid);
+    }
+    #ipFacts li .stat-value { font-family: var(--font-mono); font-weight: 300; font-size: 12px; color: var(--gray-lo); }
+    #ipDesc { font-family: var(--font-ui); font-weight: 300; font-size: 11px; line-height: 1.7; color: var(--gray-mid); margin-top: 16px; }
     @media (max-width: 640px) {
-      #infoPanel { width: min(200px, 46vw); padding: 13px 13px 12px; right: calc(12px + env(safe-area-inset-right, 0px)); }
-      #ipTitle { font-size: 16px; }
-      #ipDesc  { font-size: 10.5px; }
-      #ipFacts li { font-size: 9.5px; }
+      #infoPanel { width: min(200px, 46vw); padding: 18px 16px; }
+      #ipTitle { font-size: 14px; }
+      #ipDesc  { font-size: 10px; }
     }
 
-    /* ── Stage nav arrows ── */
+    /* ── Vertical scroll nav — right edge, igloo-style ── */
     #stageNav {
       position: fixed;
-      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
-      left: 50%; transform: translateX(-50%);
-      display: flex; gap: 14px; z-index: 15;
+      right: 20px; top: 50%;
+      transform: translateY(-50%);
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px;
+      z-index: 15;
     }
-    #stageNav button {
-      font: 300 13px/1 'Cinzel', serif; color: rgba(180, 150, 255, .45);
-      background: transparent; border: 1px solid rgba(180, 150, 255, .18);
-      border-radius: 50%; width: 30px; height: 30px; cursor: pointer;
-      transition: color .25s, border-color .25s, opacity .25s;
+    #ipTrackV { width: 1px; height: 120px; background: var(--gray-hi); position: relative; }
+    #ipTrackVFill {
+      position: absolute; bottom: 0; left: 0; width: 1px;
+      background: var(--gray-lo); height: 0%;
+      transition: height .1s linear;
     }
-    #stageNav button:hover { color: rgba(210, 185, 255, .7); border-color: rgba(210, 185, 255, .4); }
-    @media (max-width: 640px), (pointer: coarse) {
-      #stageNav button { width: 40px; height: 40px; font-size: 15px; }
+    #stageNav .nav-dots { display: flex; flex-direction: column; gap: 10px; }
+    #stageNav button.nav-dot {
+      width: 4px; height: 4px; padding: 6px; margin: -6px;
+      border-radius: 50%; background: none; border: none; cursor: pointer;
     }
+    #stageNav button.nav-dot::before {
+      content: ''; display: block; width: 4px; height: 4px; border-radius: 50%;
+      background: var(--gray-hi); transition: background .3s, transform .3s;
+    }
+    #stageNav button.nav-dot.active::before { background: var(--gray-lo); transform: scale(1.4); }
   </style>
 
   <canvas id="c"></canvas>
   <canvas id="flareCanvas" aria-hidden="true"></canvas>
-  <div class="hint">kéo để xoay · cuộn để lặn sâu qua từng hành tinh</div>
-  <div id="sndBtn">♪ sound</div>
+  <div class="hint">kéo để xoay · cuộn để khám phá · lăn sâu để đến gần</div>
+  <div id="sndBtn">SND OFF</div>
 
   <div id="infoPanel">
     <div id="ipTrack"><div id="ipTrackFill"></div></div>
@@ -167,17 +197,13 @@
     <div class="ip-index"><span id="ipCur">1</span><span class="ip-sep">/</span><span id="ipTotal">8</span></div>
     <div id="ipTitle"></div>
     <div id="ipSub"></div>
-    <p id="ipDesc"></p>
     <ul id="ipFacts"></ul>
-    <div class="ip-dots">
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
-    </div>
+    <p id="ipDesc"></p>
   </div>
 
   <div id="stageNav">
-    <button id="navPrev" aria-label="Trước">‹</button>
-    <button id="navNext" aria-label="Sau">›</button>
+    <div id="ipTrackV"><div id="ipTrackVFill"></div></div>
+    <div class="nav-dots"></div>
   </div>
 
   <div id="veil"></div>
@@ -340,6 +366,12 @@
           float bg = texture2D(tBloom, vUv).g;
           float bb = texture2D(tBloom, vUv - dir * str * 2.0).b;
           col += vec3(br, bg, bb) * uBloomStrength;
+
+          /* ACES filmic tonemap + gamma — this quad is the one true final
+             pixel write, so (unlike renderer.toneMapping, which never runs
+             on a custom ShaderMaterial pipeline) this actually takes effect */
+          col = (col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14);
+          col = pow(clamp(col, 0.0, 1.0), vec3(1.0 / 2.2));
 
           gl_FragColor = vec4(col, 1.0);
         }
@@ -658,7 +690,7 @@
     const cosmicGroup = new THREE.Group();
     scene.add(cosmicGroup);
 
-    const STARS3D = 5000;
+    const STARS3D = 3200; /* igloo.inc BG is spare — restrained star density */
     const s3P = new Float32Array(STARS3D * 3);
     const s3C = new Float32Array(STARS3D * 3);
     for (let i = 0; i < STARS3D; i++) {
@@ -1723,90 +1755,51 @@
     ═══════════════════════════════════════════ */
     const STAGES = [
       {
-        title: 'Sao Thủy', sub: 'Mercury · gần Mặt Trời nhất',
-        desc: 'Hành tinh nhỏ nhất và gần Mặt Trời nhất, bề mặt phủ đầy hố va chạm như Mặt Trăng.',
-        facts: [
-          'Khoảng cách tới Mặt Trời: ~58 triệu km',
-          'Gần như không có khí quyển',
-          'Chênh lệch nhiệt độ ngày/đêm cực lớn: -180°C tới 430°C',
-          'Một năm chỉ dài 88 ngày Trái Đất',
-        ],
+        title: 'Sao Thủy', sub: 'Hành tinh đầu tiên',
+        desc: 'Bề mặt rỗ chằng chịt vết thiên thạch, không khí quyển hầu như không tồn tại.',
+        facts: [['Khoảng cách', '57.9 triệu km'], ['Đường kính', '4,879 km'], ['Nhiệt độ', '430°C / -180°C'], ['Chu kỳ', '88 ngày']],
       },
       {
-        title: 'Sao Kim', sub: 'Venus · hành tinh nóng nhất',
-        desc: 'Bị bao phủ bởi mây axit sulfuric dày đặc, gây hiệu ứng nhà kính cực đoan.',
-        facts: [
-          'Nhiệt độ bề mặt: khoảng 465°C',
-          'Một ngày trên Sao Kim dài hơn một năm của nó',
-          'Khí quyển chủ yếu là CO2, áp suất gấp ~92 lần Trái Đất',
-          'Quay ngược chiều so với hầu hết các hành tinh khác',
-        ],
+        title: 'Sao Kim', sub: 'Hành tinh thứ hai',
+        desc: 'Bầu khí quyển dày đặc CO₂ giữ nhiệt — nóng nhất hệ mặt trời.',
+        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '465°C'], ['Chu kỳ', '225 ngày']],
       },
       {
-        title: 'Trái Đất', sub: 'Earth · hành tinh xanh',
-        desc: 'Hành tinh duy nhất được biết đến có sự sống, với bề mặt phần lớn là đại dương.',
-        facts: [
-          'Khoảng cách tới Mặt Trời: ~150 triệu km',
-          'Đường kính: 12.742 km',
-          '71% bề mặt được bao phủ bởi nước',
-          'Tự quay: 24 giờ · quỹ đạo: 365,25 ngày',
-        ],
+        title: 'Trái Đất', sub: 'Hành tinh xanh',
+        desc: 'Hành tinh duy nhất được biết đến có sự sống trong vũ trụ.',
+        facts: [['Khoảng cách', '150 triệu km'], ['Đường kính', '12,742 km'], ['Nhiệt độ', '15°C trung bình'], ['Chu kỳ', '365 ngày']],
       },
       {
-        title: 'Sao Hỏa', sub: 'Mars · hành tinh đỏ',
-        desc: 'Bề mặt phủ oxit sắt tạo màu đỏ đặc trưng, là đích đến hàng đầu cho thám hiểm con người.',
-        facts: [
-          'Có núi lửa lớn nhất hệ Mặt Trời: Olympus Mons (~21 km)',
-          'Hai mặt trăng nhỏ: Phobos và Deimos',
-          'Một ngày dài khoảng 24,6 giờ — gần bằng Trái Đất',
-          'Từng có nước lỏng chảy trên bề mặt',
-        ],
+        title: 'Sao Hỏa', sub: 'Hành tinh đỏ',
+        desc: 'Ngọn núi Olympus Mons cao nhất hệ mặt trời — 21.9 km.',
+        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-60°C trung bình'], ['Chu kỳ', '687 ngày']],
       },
       {
-        title: 'Sao Mộc', sub: 'Jupiter · hành tinh khí khổng lồ',
-        desc: 'Hành tinh lớn nhất hệ Mặt Trời, với Vết Đỏ Lớn là một cơn bão khổng lồ đã tồn tại hàng trăm năm.',
-        facts: [
-          'Đường kính: 139.820 km — gấp 11 lần Trái Đất',
-          'Có ít nhất 95 mặt trăng đã biết',
-          'Một ngày chỉ dài khoảng 10 giờ — quay nhanh nhất hệ Mặt Trời',
-          'Khối lượng lớn hơn tổng các hành tinh còn lại cộng lại',
-        ],
+        title: 'Sao Mộc', sub: 'Người khổng lồ khí',
+        desc: 'Vết Đỏ Lớn là cơn bão kéo dài hơn 350 năm.',
+        facts: [['Khoảng cách', '778 triệu km'], ['Đường kính', '139,820 km'], ['Nhiệt độ', '-110°C'], ['Chu kỳ', '12 năm']],
       },
       {
-        title: 'Sao Thổ', sub: 'Saturn · chúa tể của những chiếc vành đai',
-        desc: 'Nổi tiếng với hệ vành đai băng đá và bụi ngoạn mục, trải rộng hàng trăm nghìn km.',
-        facts: [
-          'Vành đai chủ yếu là băng nước và đá',
-          'Có mật độ thấp hơn nước — về lý thuyết có thể nổi',
-          'Hơn 140 mặt trăng đã được xác nhận',
-          'Gió trong khí quyển có thể đạt 1.800 km/h',
-        ],
+        title: 'Sao Thổ', sub: 'Hành tinh vành đai',
+        desc: 'Vành đai rộng 282,000 km nhưng chỉ dày vài chục mét.',
+        facts: [['Khoảng cách', '1.43 tỷ km'], ['Đường kính', '116,460 km'], ['Nhiệt độ', '-140°C'], ['Chu kỳ', '29 năm']],
       },
       {
-        title: 'Sao Thiên Vương', sub: 'Uranus · hành tinh nằm nghiêng',
-        desc: 'Một hành tinh băng khổng lồ quay gần như nằm ngang so với mặt phẳng quỹ đạo.',
-        facts: [
-          'Trục quay nghiêng khoảng 98°',
-          'Màu xanh lam nhạt do khí metan trong khí quyển',
-          'Có hệ vành đai mờ, khó quan sát',
-          'Nhiệt độ khí quyển lạnh nhất trong hệ Mặt Trời',
-        ],
+        title: 'Sao Thiên Vương', sub: 'Người khổng lồ băng',
+        desc: 'Trục nghiêng 98° — hành tinh tự quay nằm nghiêng.',
+        facts: [['Khoảng cách', '2.87 tỷ km'], ['Đường kính', '50,724 km'], ['Nhiệt độ', '-195°C'], ['Chu kỳ', '84 năm']],
       },
       {
-        title: 'Sao Hải Vương', sub: 'Neptune · hành tinh xa nhất',
-        desc: 'Hành tinh xa Mặt Trời nhất, nổi bật với những cơn gió mạnh nhất được ghi nhận.',
-        facts: [
-          'Khoảng cách tới Mặt Trời: ~4,5 tỷ km',
-          'Gió có thể đạt tốc độ hơn 2.100 km/h',
-          'Một năm Sao Hải Vương bằng ~165 năm Trái Đất',
-          'Từng có "Vết Tối Lớn" — một cơn bão khổng lồ tương tự Sao Mộc',
-        ],
+        title: 'Sao Hải Vương', sub: 'Hành tinh xa nhất',
+        desc: 'Gió nhanh nhất hệ mặt trời — 2,100 km/h.',
+        facts: [['Khoảng cách', '4.5 tỷ km'], ['Đường kính', '49,244 km'], ['Nhiệt độ', '-200°C'], ['Chu kỳ', '165 năm']],
       },
     ];
 
+    /* igloo accent table — blue-gray/rust/ochre, per-planet identity color */
     const ACCENTS = [
-      [190, 180, 170], [230, 205, 140], [110, 170, 255], [230, 120, 80],
-      [220, 170, 110], [225, 205, 150], [140, 220, 220], [90, 120, 220],
+      [136, 153, 170], [200, 160, 96], [58, 123, 213], [196, 80, 48],
+      [212, 160, 96], [200, 176, 104], [96, 192, 204], [48, 96, 216],
     ];
 
     const ipCur = document.getElementById('ipCur');
@@ -1815,10 +1808,17 @@
     const ipDesc = document.getElementById('ipDesc');
     const ipFacts = document.getElementById('ipFacts');
     const ipTrackFill = document.getElementById('ipTrackFill');
+    const ipTrackVFill = document.getElementById('ipTrackVFill');
     const infoPanel = document.getElementById('infoPanel');
-    const dots = document.querySelectorAll('#infoPanel .dot');
-    const navPrev = document.getElementById('navPrev');
-    const navNext = document.getElementById('navNext');
+    const navDotsWrap = document.querySelector('#stageNav .nav-dots');
+    const navDots = STAGES.map((_, i) => {
+      const b = document.createElement('button');
+      b.className = 'nav-dot';
+      b.setAttribute('aria-label', STAGES[i].title);
+      b.addEventListener('click', () => scrollToWorld(i));
+      navDotsWrap.appendChild(b);
+      return b;
+    });
     let ipLiEls = [];
 
     function renderPanelContent(i) {
@@ -1828,26 +1828,29 @@
       ipSub.textContent = s.sub;
       ipDesc.textContent = s.desc;
       ipFacts.innerHTML = '';
-      ipLiEls = s.facts.map(f => {
+      ipLiEls = s.facts.map(([label, value]) => {
         const li = document.createElement('li');
-        li.textContent = f;
+        const lab = document.createElement('span'); lab.className = 'stat-label'; lab.textContent = label;
+        const val = document.createElement('span'); val.className = 'stat-value'; val.textContent = value;
+        li.appendChild(lab); li.appendChild(val);
         ipFacts.appendChild(li);
         return li;
       });
-      dots.forEach((d, di) => d.classList.toggle('active', di === i));
     }
 
-    function applyPanelClarity(ic, accFloor, accNext) {
+    function applyPanelClarity(ic, accFloor, accNext, floorP) {
       const blur = (1 - ic) * 9;
       const op = 0.16 + 0.84 * ic;
       infoPanel.style.opacity = op.toFixed(3);
       infoPanel.style.filter = `blur(${blur.toFixed(2)}px)`;
       infoPanel.style.transform = `translateY(-50%) scale(${(0.95 + 0.05 * ic).toFixed(3)})`;
-      const r = accFloor[0] + (accNext[0] - accFloor[0]) * ic;
-      const g = accFloor[1] + (accNext[1] - accFloor[1]) * ic;
-      const b = accFloor[2] + (accNext[2] - accFloor[2]) * ic;
-      infoPanel.style.setProperty('--accent', `${r | 0}, ${g | 0}, ${b | 0}`);
+      const r = (accFloor[0] + (accNext[0] - accFloor[0]) * ic) | 0;
+      const g = (accFloor[1] + (accNext[1] - accFloor[1]) * ic) | 0;
+      const b = (accFloor[2] + (accNext[2] - accFloor[2]) * ic) | 0;
+      document.documentElement.style.setProperty('--accent', `rgb(${r}, ${g}, ${b})`);
       ipTrackFill.style.width = (ic * 100) + '%';
+      if (ipTrackVFill) ipTrackVFill.style.height = (ic * 100) + '%';
+      navDots.forEach((d, di) => d.classList.toggle('active', di === floorP));
       const n = ipLiEls.length || 1;
       ipLiEls.forEach((li, idx) => {
         const startAt = (idx / n) * 0.75;
@@ -1889,8 +1892,6 @@
       const idx = ((i % N) + N) % N;
       window.scrollTo({ top: idx * segmentPx() + 3, behavior: 'smooth' });
     }
-    navPrev.addEventListener('click', () => scrollToWorld(floorWorld - 1));
-    navNext.addEventListener('click', () => scrollToWorld(floorWorld + 1));
     window.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); scrollToWorld(floorWorld + 1); }
       if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); scrollToWorld(floorWorld - 1); }
@@ -1992,15 +1993,15 @@
     sndBtn.addEventListener('click', () => {
       if (!audio) {
         audio = initAudio();
-        sndBtn.textContent = '♪ sound on';
+        sndBtn.textContent = 'SND ON';
         sndBtn.classList.add('on');
       } else if (audio.ctx.state === 'suspended') {
         audio.ctx.resume();
-        sndBtn.textContent = '♪ sound on';
+        sndBtn.textContent = 'SND ON';
         sndBtn.classList.add('on');
       } else {
         audio.ctx.suspend();
-        sndBtn.textContent = '♪ sound';
+        sndBtn.textContent = 'SND OFF';
         sndBtn.classList.remove('on');
       }
     });
@@ -2029,7 +2030,10 @@
     let camFov = restFov();
     let lastFrameMs = performance.now();
     let flareClock = 0; /* delta-accumulated — never jumps after a tab is backgrounded */
-    let mouseTargetRX = 0, mouseTargetRY = 0;
+    /* True camera-translation parallax (D1-D3): the cursor actually moves
+       the eye through the scene instead of just tilting the model — genuine
+       stereo depth instead of a fake rotation-based parallax illusion.    */
+    let mouseParallaxX = 0, mouseParallaxY = 0;
     const MIN_SECONDS_PER_WORLD = 5;
 
     (function loop() {
@@ -2098,7 +2102,7 @@
         lastUpcoming = nextIndex;
         renderPanelContent(nextIndex);
       }
-      applyPanelClarity(ic, ACCENTS[floorP], ACCENTS[nextIndex]);
+      applyPanelClarity(ic, ACCENTS[floorP], ACCENTS[nextIndex], floorP);
 
       const presence = new Array(N).fill(0);
       presence[floorP] = 1 - growEase;
@@ -2109,12 +2113,12 @@
       outerRot.x = Math.max(-0.9, Math.min(0.9, outerRot.x));
       rotVel.x *= 0.93;
       rotVel.y *= 0.93;
-      /* Mouse parallax: a slow, lazy tilt toward the cursor, additive
-         on top of drag rotation — never replacing it */
-      mouseTargetRX += (mouseNY * 0.04 - mouseTargetRX) * 0.03;
-      mouseTargetRY += (mouseNX * 0.05 - mouseTargetRY) * 0.03;
-      heroRoot.rotation.y = 0.18 + outerRot.y + mouseTargetRY;
-      heroRoot.rotation.x = -0.30 + outerRot.x + mouseTargetRX;
+      heroRoot.rotation.y = 0.18 + outerRot.y;
+      heroRoot.rotation.x = -0.30 + outerRot.x;
+      /* Mouse parallax now translates the camera itself (see render tail
+         below) rather than tilting the model — real depth, not a fake tilt */
+      mouseParallaxX += (mouseNX * 0.12 - mouseParallaxX) * 0.04;
+      mouseParallaxY += (-mouseNY * 0.08 - mouseParallaxY) * 0.04;
 
       heroStages.forEach((s, i) => {
         const pres = presence[i];
@@ -2193,8 +2197,8 @@
          (not +=): nothing else drives these axes per-frame, so
          accumulating every frame would drift the camera off-axis
          forever instead of gently oscillating in place.              */
-      camera.position.x = arcX + Math.sin(t * 0.23) * 0.007;
-      camera.position.y = arcY + Math.cos(t * 0.17) * 0.005;
+      camera.position.x = arcX + mouseParallaxX + Math.sin(t * 0.23) * 0.007;
+      camera.position.y = arcY + mouseParallaxY + Math.cos(t * 0.17) * 0.005;
       camera.position.z = camZ + Math.sin(t * 0.31) * 0.003 + Math.sin(t * 0.15) * 0.05;
       /* The arc moves the camera a real distance off-axis (unlike the
          old pure-Z push), so it has to re-aim at the origin every
