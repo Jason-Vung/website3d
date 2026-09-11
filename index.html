@@ -2033,74 +2033,53 @@
       limiter.attack.value = 0.003; limiter.release.value = 0.25;
       master.connect(limiter); limiter.connect(ctx.destination);
       master.gain.value = 0;
-      master.gain.setTargetAtTime(0.26, ctx.currentTime, 3.0);
+      master.gain.setTargetAtTime(0.24, ctx.currentTime, 2.0);
 
-      /* ── Bright sustained pad: a genuine Cmaj9 (added the actual 9th,
-         D, which the old 3-note version was missing) — an open, airy
-         chord instead of a plain minor-leaning triad                 */
-      const padFreqs = [130.81, 164.81, 196.00, 293.66];
+      /* ── Bright sustained pad, a full octave up from the old version
+         and with NO low/sub layer under it at all — the previous mix's
+         32Hz sub rumble + low-octave chord was read as heavy/ominous
+         ("sad and scary"); this is deliberately all mid-and-up, a warm
+         open Cmaj9 with nothing dark underneath it                    */
+      const padFreqs = [261.63, 329.63, 392.00, 587.33]; // C4 E4 G4 D5
       padFreqs.forEach((f, i) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = f; g.gain.value = i === 3 ? 0.045 : 0.065;
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = i === 3 ? 0.04 : 0.055;
         o.connect(g); g.connect(master); o.start();
       });
 
-      /* Tremolo LFO on pad layer — 0.04 Hz, very slow breath */
+      /* Tremolo LFO on pad layer — a touch faster than before, reads as
+         a happy little "breathing" shimmer rather than a slow brood   */
       const padTremoloLFO = ctx.createOscillator();
       const padTremoloGain = ctx.createGain();
-      padTremoloLFO.type = 'sine'; padTremoloLFO.frequency.value = 0.04;
-      padTremoloGain.gain.value = 0.03;
+      padTremoloLFO.type = 'sine'; padTremoloLFO.frequency.value = 0.09;
+      padTremoloGain.gain.value = 0.025;
       padTremoloLFO.connect(padTremoloGain);
       padTremoloGain.connect(master.gain);
       padTremoloLFO.start();
 
-      /* ── Sub rumble: physical weight, kept light so it grounds the mix
-         without muddying the brighter arpeggio on top                */
-      const sub = ctx.createOscillator(), subG = ctx.createGain();
-      sub.type = 'triangle'; sub.frequency.value = 32; subG.gain.value = 0.05;
-      sub.connect(subG); subG.connect(master); sub.start();
-
-      /* ── Filtered cosmos noise — brightened (higher cutoff, less gain)
-         into an airy shimmer-wind rather than a dark, ominous hiss     */
-      const bufLen = ctx.sampleRate * 2;
-      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-      const d = buf.getChannelData(0);
-      for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
-      const ns = ctx.createBufferSource(); ns.buffer = buf; ns.loop = true;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 650; lp.Q.value = 0.7;
-      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 140; hp.Q.value = 0.5;
-      const noiseG = ctx.createGain(); noiseG.gain.value = 0.016;
-      ns.connect(hp); hp.connect(lp); lp.connect(noiseG); noiseG.connect(master); ns.start();
-
-      /* Slow LFO sweeping lowpass cutoff — cosmic "breathing" */
-      const noiseLFO = ctx.createOscillator(), noiseLFOG = ctx.createGain();
-      noiseLFO.type = 'sine'; noiseLFO.frequency.value = 0.018;
-      noiseLFOG.gain.value = 260;
-      noiseLFO.connect(noiseLFOG); noiseLFOG.connect(lp.frequency); noiseLFO.start();
-
-      /* ── High shimmer: C7 + D7 amplitude-modulated twinkle ── */
+      /* ── High shimmer: C7 + D7 + G7 amplitude-modulated twinkle —
+         no noise bed at all anymore (the old filtered-noise "wind" is
+         exactly the kind of texture that reads as spooky, not joyful) */
       const shimmerLFO = ctx.createOscillator(), shimmerLFOG = ctx.createGain();
-      shimmerLFO.type = 'sine'; shimmerLFO.frequency.value = 3.7;
-      shimmerLFOG.gain.value = 0.005;
+      shimmerLFO.type = 'sine'; shimmerLFO.frequency.value = 4.2;
+      shimmerLFOG.gain.value = 0.006;
       shimmerLFO.connect(shimmerLFOG); shimmerLFO.start();
-      [2093, 2349].forEach(f => {
+      [2093, 2349, 3136].forEach(f => {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.007;
         shimmerLFOG.connect(g.gain);
         o.connect(g); g.connect(master); o.start();
       });
 
-      /* ── Playful arpeggio — the real mood shift, from a static drone
-         to something that actually moves: a plucked major-pentatonic
-         run (C D E G A, two octaves) with a fast pluck envelope, tied
-         to `wp` (closed over from the render loop's own scope) so it
-         brightens and speeds up very slightly the deeper the journey
-         goes, instead of looping identically forever                  */
+      /* ── Playful arpeggio — a plucked major-pentatonic run (C D E G A,
+         two octaves) with a fast pluck envelope, tied to `wp` (closed
+         over from the render loop's own scope) so it brightens and
+         speeds up very slightly the deeper the journey goes            */
       const arpNotes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
       let arpStep = 0, arpTimer = null;
-      function pluckNote(freq, level, dur) {
+      function pluckNote(freq, level, dur, wave) {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'triangle'; o.frequency.value = freq;
+        o.type = wave || 'triangle'; o.frequency.value = freq;
         const t0 = ctx.currentTime;
         g.gain.setValueAtTime(0.0001, t0);
         g.gain.linearRampToValueAtTime(level, t0 + 0.012);
@@ -2120,21 +2099,36 @@
       }
       arpTimer = setTimeout(arpTick, 700);
 
+      /* ── Magic sparkle: a quick rising bell glissando every 7-12s —
+         the "pixie dust" touch that actually sells "playful/Disney"    */
+      const sparkleNotes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+      function sparkleTick() {
+        if (ctx.state === 'running') {
+          sparkleNotes.forEach((f, i) => {
+            setTimeout(() => pluckNote(f, 0.05, 0.35, 'sine'), i * 55);
+          });
+        }
+        setTimeout(sparkleTick, 7000 + Math.random() * 5000);
+      }
+      setTimeout(sparkleTick, 3000);
+
       return { ctx, master };
     }
 
     /* ═══════════════════════════════════════════
-       AI VOICE NARRATION — English, "a person from the future"
+       AI VOICE NARRATION — English, warm/welcoming female voice,
        narrating each world as you arrive. Uses the browser's own
        Web Speech API (SpeechSynthesis) — no external service, no
        network call, works fully inside the sandbox. The exact voice/
        accent is whatever the visitor's OS/browser ships (Web Speech
        gives no way to guarantee a specific one); we bias the pick
-       toward a deeper male English voice and slow the pitch/rate a
-       touch for a calmer, more distant-narrator read, but that is a
-       nudge, not a guarantee, of the "future" character requested.
+       toward a female English voice and raise the pitch/rate a touch
+       for a brighter, more "Disney welcome" read, but that is a
+       nudge, not a guarantee — a paid TTS API would be the only way
+       to lock in one exact character voice across every visitor.
        Content is drawn from the same NASA-sourced facts as the panel,
        not invented, just told as a short spoken story per world.    */
+    const WELCOME_MESSAGE = "Welcome to Jason's Universe!";
     const NARRATION = [
       "This is Mercury, the closest world to the Sun. Its gray, cratered surface bears the Caloris Basin, one of the largest impact scars in the solar system. Daytime scorches past four hundred thirty degrees Celsius; night falls to minus one eighty. No atmosphere survives here, only a whisper of gas blown away by the solar wind.",
       "Venus turns backward. Its day is longer than its year, and the Sun rises in the west. Beneath thick clouds of sulfuric acid, the surface reaches four hundred sixty four degrees Celsius, hot enough to melt lead. Yet fifty kilometers up, in the clouds, conditions turn almost gentle. Some still wonder if something could live there.",
@@ -2150,21 +2144,34 @@
       if (!('speechSynthesis' in window)) return;
       const voices = speechSynthesis.getVoices();
       const en = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-      const preferred = ['Daniel', 'Google UK English Male', 'Alex', 'Fred', 'Male'];
+      /* common bright/warm female voice names across macOS, Windows,
+         Chrome and Android — first match wins, else fall back gracefully */
+      const preferred = ['Samantha', 'Google US English', 'Zira', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Ava', 'Allison', 'Susan', 'Fiona', 'Female'];
       narratorVoice = en.find(v => preferred.some(n => v.name.includes(n))) || en[0] || voices[0] || null;
     }
     if ('speechSynthesis' in window) {
       pickNarratorVoice();
       speechSynthesis.onvoiceschanged = pickNarratorVoice;
     }
-    let lastNarrated = -1;
-    function narratePlanet(i) {
-      if (!('speechSynthesis' in window) || !audio || audio.ctx.state !== 'running') return;
-      speechSynthesis.cancel(); /* never overlap — a fast scroll should cut to the new world, not queue every world skipped past */
-      const u = new SpeechSynthesisUtterance(NARRATION[i]);
+    function makeUtterance(text) {
+      const u = new SpeechSynthesisUtterance(text);
       if (narratorVoice) u.voice = narratorVoice;
-      u.lang = 'en-US'; u.pitch = 0.82; u.rate = 0.94; u.volume = 1.0;
-      speechSynthesis.speak(u);
+      u.lang = 'en-US'; u.pitch = 1.18; u.rate = 1.02; u.volume = 1.0; /* brighter, warmer, welcoming */
+      return u;
+    }
+    function speakWelcome() {
+      if (!('speechSynthesis' in window)) return;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(makeUtterance(WELCOME_MESSAGE));
+    }
+    let lastNarrated = -1;
+    function narratePlanet(i, opts) {
+      if (!('speechSynthesis' in window) || !audio || audio.ctx.state !== 'running') return;
+      /* never overlap — a fast scroll should cut to the new world, not
+         queue every world skipped past; the one exception is right
+         after the welcome greeting, which should finish its sentence   */
+      if (!(opts && opts.keepQueue)) speechSynthesis.cancel();
+      speechSynthesis.speak(makeUtterance(NARRATION[i]));
       lastNarrated = i;
     }
 
@@ -2174,7 +2181,8 @@
         audio = initAudio();
         sndBtn.textContent = 'SND ON';
         sndBtn.classList.add('on');
-        narratePlanet(floorWorld); /* speak the world already on screen right away */
+        speakWelcome(); /* "Welcome to Jason's Universe!" once, first time only */
+        narratePlanet(floorWorld, { keepQueue: true }); /* then the world already on screen */
       } else if (audio.ctx.state === 'suspended') {
         audio.ctx.resume();
         sndBtn.textContent = 'SND ON';
