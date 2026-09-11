@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Crystal Solar System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@300;500&display=swap">
@@ -27,14 +27,18 @@
     #scrollSpacer {
       position: relative;
       width: 100%;
-      height: 1280vh;  /* 4 worlds × 320vh of travel each */
+      height: 1280vh;   /* 4 worlds × 320vh of travel each */
+      height: 1280dvh;  /* dynamic viewport height — stays in sync with
+                            window.innerHeight as mobile browser chrome
+                            shows/hides, instead of drifting out of sync
+                            with the static `vh` unit while scrolling  */
       pointer-events: none;
     }
 
     /* ── Hint text ── */
     .hint {
       position: fixed;
-      bottom: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
       left: 50%;
       transform: translateX(-50%);
       font: 300 9px/1 'Cinzel', serif;
@@ -49,8 +53,8 @@
     /* ── Sound toggle button ── */
     #sndBtn {
       position: fixed;
-      top: 18px;
-      right: 20px;
+      top: calc(18px + env(safe-area-inset-top, 0px));
+      right: calc(20px + env(safe-area-inset-right, 0px));
       font: 300 9px/1 'Cinzel', serif;
       letter-spacing: .22em;
       text-transform: uppercase;
@@ -61,6 +65,9 @@
       padding: 6px 11px;
       transition: color .3s, border-color .3s;
       z-index: 20;
+    }
+    @media (max-width: 640px), (pointer: coarse) {
+      #sndBtn  { padding: 10px 14px; font-size: 10px; } /* bigger tap target */
     }
     #sndBtn:hover { color: rgba(210, 185, 255, .6); border-color: rgba(210, 185, 255, .38); }
     #sndBtn.on   { color: rgba(140, 210, 255, .6); border-color: rgba(140, 210, 255, .35); }
@@ -191,7 +198,7 @@
       #infoPanel {
         width: min(200px, 46vw);
         padding: 13px 13px 12px;
-        right: 12px;
+        right: calc(12px + env(safe-area-inset-right, 0px));
       }
       #ipTitle { font-size: 16px; }
       #ipDesc  { font-size: 10.5px; }
@@ -201,7 +208,7 @@
     /* ── Stage nav arrows (fallback for touch / accessibility) ── */
     #stageNav {
       position: fixed;
-      bottom: 44px;
+      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -220,6 +227,9 @@
     }
     #stageNav button:hover { color: rgba(210, 185, 255, .7); border-color: rgba(210, 185, 255, .4); }
     #stageNav button:disabled { opacity: .25; cursor: default; }
+    @media (max-width: 640px), (pointer: coarse) {
+      #stageNav button { width: 40px; height: 40px; font-size: 15px; } /* easier to tap */
+    }
   </style>
 </head>
 <body>
@@ -303,8 +313,16 @@
     renderer.toneMappingExposure = 1.1;
     renderer.sortObjects = true;
 
+    /* Portrait / narrow phone screens need a wider vertical FOV to frame
+       the hero object the same way a landscape laptop window does — a
+       fixed FOV reads as too tight/cropped once aspect drops below ~1 */
+    function restFov() {
+      const aspect = W() / H();
+      return aspect < 0.8 ? 52 : aspect < 1.05 ? 46 : 38;
+    }
+
     const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, W() / H(), 0.05, 120);
+    const camera = new THREE.PerspectiveCamera(restFov(), W() / H(), 0.05, 120);
     camera.position.set(0, 0, 3.3);
     camera.lookAt(0, 0, 0);
 
@@ -1079,9 +1097,18 @@
     function initAudio() {
       const ctx    = new (window.AudioContext || window.webkitAudioContext)();
       const master = ctx.createGain();
+      /* A soft limiter ahead of the destination — headroom so the
+         louder master gain below can't crackle/clip on the mix       */
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -8;
+      limiter.knee.value      = 18;
+      limiter.ratio.value     = 12;
+      limiter.attack.value    = 0.003;
+      limiter.release.value   = 0.25;
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
       master.gain.value = 0;
-      master.connect(ctx.destination);
-      master.gain.setTargetAtTime(0.10, ctx.currentTime, 2.0);
+      master.gain.setTargetAtTime(0.32, ctx.currentTime, 2.0); /* ~3x louder than before */
 
       /* Drone oscillators */
       [[42,'sine',0.42],[42.85,'sine',0.17],[84.3,'sine',0.12],
@@ -1273,8 +1300,18 @@
     const SEGMENT_VH = 320; /* scroll distance (vh) allocated per world — more
                                room between worlds so the grow-in reads as a
                                slow, deliberate approach rather than a quick cut */
-    function segmentPx()  { return window.innerHeight * SEGMENT_VH / 100; }
-    function getMaxScroll() { return Math.max(1, document.documentElement.scrollHeight - window.innerHeight); }
+
+    /* Stable viewport height for all scroll MATH (segment length, max
+       scroll). On mobile, window.innerHeight shrinks/grows by ~50-100px
+       as the browser's address bar hides/shows WHILE you scroll — if
+       the math used that live value directly, the world position would
+       recompute against a moving target every frame and visibly jitter.
+       vpH only updates on a genuine resize/rotation (a big width change,
+       or a height change too large to be just chrome collapsing).      */
+    let vpH = window.innerHeight;
+    let vpWLast = window.innerWidth;
+    function segmentPx()    { return vpH * SEGMENT_VH / 100; }
+    function getMaxScroll() { return Math.max(1, document.documentElement.scrollHeight - vpH); }
 
     /* Nav buttons / keyboard jump to the START of a given world
        (wrapping both directions), via real (smooth) page scroll */
@@ -1289,10 +1326,33 @@
       if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  { e.preventDefault(); scrollToWorld(floorWorld - 1); }
     });
 
+    /* Two-finger drag rotates the object on touch devices (one finger
+       is already claimed by native page scroll — the whole journey) */
+    let lastPinch = null;
+    window.addEventListener('touchmove', e => {
+      if (e.touches.length === 2) {
+        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        if (lastPinch) {
+          rotVel.y += (mx - lastPinch.x) * 0.006;
+          rotVel.x += (my - lastPinch.y) * 0.006;
+        }
+        lastPinch = { x: mx, y: my };
+      } else {
+        lastPinch = null;
+      }
+    }, { passive: true });
+    window.addEventListener('touchend', () => { lastPinch = null; });
+
     window.addEventListener('resize', () => {
       camera.aspect = W() / H();
+      camera.fov = restFov();
       camera.updateProjectionMatrix();
       renderer.setSize(W(), H());
+
+      const w = window.innerWidth, h = window.innerHeight;
+      if (w !== vpWLast || Math.abs(h - vpH) > 120) { vpH = h; }
+      vpWLast = w;
     });
 
     /* ═══════════════════════════════════════════
@@ -1310,7 +1370,7 @@
     let prevWp        = 0;   /* previous frame's continuous world position */
     let wp            = 0;   /* the RENDERED world position — rate-limited, see below */
     let camZ          = 3.3; /* smoothed camera dolly — see loop below */
-    let camFov        = 38;  /* smoothed camera FOV */
+    let camFov        = restFov(); /* smoothed camera FOV — rest value adapts to aspect */
     let lastFrameMs   = performance.now();
 
     /* However fast you scroll, one world never resolves faster than
@@ -1501,7 +1561,7 @@
          boundary (where the dive amount resets) never reads as a cut */
       const dive = growEase;
       const targetZ   = 3.3 - dive * 0.75;
-      const targetFov = 38 - dive * 4;
+      const targetFov = restFov() - dive * 4;
       camZ   += (targetZ   - camZ)   * 0.10;
       camFov += (targetFov - camFov) * 0.10;
       camera.position.z = camZ + Math.sin(t * 0.15) * 0.05;
