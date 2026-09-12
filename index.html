@@ -123,9 +123,32 @@
     #sndBtn.on   { color: var(--accent); }
 
     /* ── Narration language toggle — same plain-text style, just below ── */
-    #langBtn {
+    /* Voice narration on/off — independent from the ambient #sndBtn now */
+    #voiceBtn {
       position: fixed;
       top: calc(42px + env(safe-area-inset-top, 0px));
+      right: calc(20px + env(safe-area-inset-right, 0px));
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+      cursor: pointer;
+      user-select: none;
+      border: none;
+      background: none;
+      padding: 0;
+      transition: color .3s;
+      z-index: 20;
+    }
+    #voiceBtn:hover { color: var(--gray-lo); }
+    #voiceBtn.on   { color: var(--accent); }
+    @media (max-width: 640px), (pointer: coarse) {
+      #voiceBtn { top: calc(64px + env(safe-area-inset-top, 0px)); font-size: 11px; padding: 6px 8px; }
+    }
+    #langBtn {
+      position: fixed;
+      top: calc(62px + env(safe-area-inset-top, 0px));
       right: calc(20px + env(safe-area-inset-right, 0px));
       font-family: var(--font-mono);
       font-size: 9px;
@@ -141,7 +164,7 @@
     }
     #langBtn:hover { color: var(--gray-lo); }
     @media (max-width: 640px), (pointer: coarse) {
-      #langBtn { top: calc(64px + env(safe-area-inset-top, 0px)); font-size: 11px; padding: 6px 8px; }
+      #langBtn { top: calc(100px + env(safe-area-inset-top, 0px)); font-size: 11px; padding: 6px 8px; }
     }
 
     /* ── Universe map toggle + overlay — free jump to any planet ── */
@@ -238,7 +261,7 @@
     /* ── Detail inset — small close-up render, top-right ── */
     #detailInset {
       position: fixed;
-      top: calc(68px + env(safe-area-inset-top, 0px));
+      top: calc(88px + env(safe-area-inset-top, 0px));
       right: calc(20px + env(safe-area-inset-right, 0px));
       width: 168px; height: 108px;
       border: 1px solid var(--gray-hi);
@@ -264,7 +287,7 @@
       background: rgba(11,13,18,.72); padding: 3px 6px;
     }
     @media (max-width: 640px), (pointer: coarse) {
-      #detailInset { top: calc(96px + env(safe-area-inset-top, 0px)); width: 128px; height: 84px; }
+      #detailInset { top: calc(128px + env(safe-area-inset-top, 0px)); width: 128px; height: 84px; }
     }
 
     /* ── Intro veil (fade-in overlay) ── */
@@ -415,7 +438,8 @@
   <canvas id="flareCanvas" aria-hidden="true"></canvas>
   <div class="hint" id="hintText">kéo để xoay · cuộn để khám phá · nhấp để zoom cận cảnh</div>
   <div id="introHint">cuộn xuống để khám phá vũ trụ</div>
-  <div id="sndBtn">SND OFF</div>
+  <div id="sndBtn">AMBIENT OFF</div>
+  <div id="voiceBtn">NARRATE OFF</div>
   <div id="langBtn">VOICE: EN</div>
   <div id="detailInset"><canvas id="detailCanvas"></canvas><div id="detailLabel">Sao Thủy</div></div>
   <div id="mapBtn">☉ TỔNG QUAN</div>
@@ -429,7 +453,7 @@
 
   <div id="infoPanel">
     <div id="ipTrack"><div id="ipTrackFill"></div></div>
-    <div class="ip-label" id="ipUpNext">Sắp tới</div>
+    <div class="ip-label" id="ipUpNext">Đang khám phá</div>
     <div class="ip-index"><span id="ipCur">1</span><span class="ip-sep">/</span><span id="ipTotal">8</span></div>
     <div id="ipTitle"></div>
     <div id="ipSub"></div>
@@ -2511,7 +2535,7 @@
       const b = document.createElement('button');
       b.className = 'nav-dot';
       b.setAttribute('aria-label', stages()[i].title);
-      b.addEventListener('click', () => scrollToWorld(i));
+      b.addEventListener('click', () => jumpToWorld(i));
       navDotsWrap.appendChild(b);
       return b;
     });
@@ -2568,6 +2592,9 @@
       ipLiEls.forEach(li => { li.style.opacity = '1'; li.style.transform = 'translateY(0)'; });
     }
     let lastUpcoming = -1;
+    let pinnedInfoIndex = -1; /* set by jumpToWorld() to stop the render loop's
+      natural floorP-driven info updates from instantly undoing a manual jump
+      before the slow 3-D dive has actually caught up to the new world      */
     const detailLabelEl = document.getElementById('detailLabel');
 
     /* ═══════════════════════════════════════════
@@ -2625,12 +2652,32 @@
       const idx = ((i % N) + N) % N;
       window.scrollTo({ top: idx * segmentPx() + 3, behavior: 'smooth' });
     }
+    /* Explicit "jump" navigation (next/back buttons, dots, keyboard, the
+       universe map) used to only move the scroll target — the voice,
+       panel, and detail label all stayed on the OLD world until the
+       rate-limited 3-D dive slowly caught up (several seconds later),
+       so the narration kept talking about a world you'd already left.
+       jumpToWorld() immediately syncs everything (cuts the current
+       utterance, speaks the new world, updates the panel/label) the
+       instant you click — the visual dive still eases in on its own,
+       but the INFO switches right away, matching a deliberate jump.  */
+    function jumpToWorld(i) {
+      const idx = ((i % N) + N) % N;
+      pinnedInfoIndex = idx; /* holds this until the real dive's floorP reaches idx */
+      lastUpcoming = idx;
+      renderPanelContent(idx);
+      floorWorld = idx;
+      detailLabelEl.textContent = stages()[idx].title;
+      focusTarget = 0;
+      narratePlanet(idx);
+      scrollToWorld(idx);
+    }
     window.addEventListener('keydown', e => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); scrollToWorld(floorWorld + 1); }
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); scrollToWorld(floorWorld - 1); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); jumpToWorld(floorWorld + 1); }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); jumpToWorld(floorWorld - 1); }
     });
-    document.getElementById('navPrevBtn').addEventListener('click', () => scrollToWorld(floorWorld - 1));
-    document.getElementById('navNextBtn').addEventListener('click', () => scrollToWorld(floorWorld + 1));
+    document.getElementById('navPrevBtn').addEventListener('click', () => jumpToWorld(floorWorld - 1));
+    document.getElementById('navNextBtn').addEventListener('click', () => jumpToWorld(floorWorld + 1));
 
     let lastTouch = null, lastPinch = null;
     window.addEventListener('touchmove', e => {
@@ -2684,75 +2731,82 @@
         o.connect(g); g.connect(master); o.start();
       });
 
-      /* Tremolo LFO on pad layer — a touch faster than before, reads as
-         a happy little "breathing" shimmer rather than a slow brood   */
+      /* Tremolo LFO on pad layer — a slow, epic "swell" rather than a
+         cute breathing shimmer — reads more like a heroic sci-fi score
+         bed than a lullaby now that battle FX ride on top of it       */
       const padTremoloLFO = ctx.createOscillator();
       const padTremoloGain = ctx.createGain();
-      padTremoloLFO.type = 'sine'; padTremoloLFO.frequency.value = 0.09;
-      padTremoloGain.gain.value = 0.025;
+      padTremoloLFO.type = 'sine'; padTremoloLFO.frequency.value = 0.05;
+      padTremoloGain.gain.value = 0.03;
       padTremoloLFO.connect(padTremoloGain);
       padTremoloGain.connect(master.gain);
       padTremoloLFO.start();
 
-      /* ── High shimmer: C7 + D7 + G7 amplitude-modulated twinkle —
-         no noise bed at all anymore (the old filtered-noise "wind" is
-         exactly the kind of texture that reads as spooky, not joyful) */
-      const shimmerLFO = ctx.createOscillator(), shimmerLFOG = ctx.createGain();
-      shimmerLFO.type = 'sine'; shimmerLFO.frequency.value = 4.2;
-      shimmerLFOG.gain.value = 0.006;
-      shimmerLFO.connect(shimmerLFOG); shimmerLFO.start();
-      [2093, 2349, 3136].forEach(f => {
+      /* ═══════════════════════════════════════════
+         BATTLE FX — per feedback that the calm arpeggio/sparkle read as
+         flat and uninteresting: replaced with a randomized layer of
+         sci-fi "space battle" sound effects (laser zaps, radar blips,
+         distant explosion thumps) firing on independent, irregular
+         timers — like something is always happening somewhere in the
+         scene, without ever being one predictable looping phrase.
+         Everything is still pure synthesis (oscillators + filtered
+         noise), no samples, consistent with the rest of the project. */
+      function laserZap() {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.007;
-        shimmerLFOG.connect(g.gain);
-        o.connect(g); g.connect(master); o.start();
-      });
-
-      /* ── Playful arpeggio — a plucked major-pentatonic run (C D E G A,
-         two octaves) with a fast pluck envelope, tied to `wp` (closed
-         over from the render loop's own scope) so it brightens and
-         speeds up very slightly the deeper the journey goes            */
-      const arpNotes = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
-      let arpStep = 0, arpTimer = null;
-      function pluckNote(freq, level, dur, wave) {
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
+        const pan = ctx.createStereoPanner(); pan.pan.value = (Math.random() * 2 - 1) * 0.7;
+        o.type = 'sawtooth';
+        /* per-planet key-center (same table the old arpeggio used) keeps
+           each world sounding a little different, even in the laser FX */
+        const kr = Math.pow(2, PLANET_SEMITONES[floorWorld] / 12);
+        const t0 = ctx.currentTime, dur = 0.14 + Math.random() * 0.08;
+        o.frequency.setValueAtTime((1400 + Math.random() * 600) * kr, t0);
+        o.frequency.exponentialRampToValueAtTime(90 * kr, t0 + dur);
+        g.gain.setValueAtTime(0.05, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(hp); hp.connect(pan); pan.connect(g); g.connect(master);
+        o.start(t0); o.stop(t0 + dur + 0.02);
+      }
+      function radarBlip() {
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = wave || 'triangle'; o.frequency.value = freq;
+        const pan = ctx.createStereoPanner(); pan.pan.value = (Math.random() * 2 - 1) * 0.5;
+        o.type = 'sine'; o.frequency.value = 1600 + Math.random() * 500;
         const t0 = ctx.currentTime;
         g.gain.setValueAtTime(0.0001, t0);
-        g.gain.linearRampToValueAtTime(level, t0 + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        o.connect(g); g.connect(master);
-        o.start(t0); o.stop(t0 + dur + 0.05);
+        g.gain.linearRampToValueAtTime(0.035, t0 + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+        o.connect(g); g.connect(pan); pan.connect(master);
+        o.start(t0); o.stop(t0 + 0.25);
       }
-      /* Current planet's key-center, as a frequency ratio — read fresh on
-         every note so each world's arpeggio/sparkle genuinely re-pitches
-         as you arrive, instead of one fixed loop for the whole journey  */
-      function keyRatio() { return Math.pow(2, PLANET_SEMITONES[floorWorld] / 12); }
-      function arpTick() {
+      function distantBoom() {
+        const bufLen = Math.floor(ctx.sampleRate * 0.6);
+        const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160 + Math.random() * 60;
+        const g = ctx.createGain();
+        const t0 = ctx.currentTime;
+        g.gain.setValueAtTime(0.09, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
+        src.connect(lp); lp.connect(g); g.connect(master);
+        src.start(t0);
+      }
+      function scheduleBattleFx() {
         if (ctx.state === 'running') {
-          const bright = Math.min(1, wp / 8); /* wp: outer render-loop scroll progress */
-          const note = arpNotes[arpStep % arpNotes.length] * keyRatio();
-          pluckNote(note, 0.022 + bright * 0.010, 0.6);
-          arpStep++;
+          const roll = Math.random();
+          if (roll < 0.45) laserZap();
+          else if (roll < 0.75) radarBlip();
+          else distantBoom();
+          /* laser zaps occasionally come in a quick 2-3 shot burst */
+          if (roll < 0.20) {
+            setTimeout(laserZap, 90 + Math.random() * 60);
+            if (Math.random() < 0.5) setTimeout(laserZap, 200 + Math.random() * 80);
+          }
         }
-        const tempo = 430 - Math.min(1, wp / 8) * 70;
-        arpTimer = setTimeout(arpTick, tempo);
+        setTimeout(scheduleBattleFx, 1400 + Math.random() * 2600);
       }
-      arpTimer = setTimeout(arpTick, 1100);
-
-      /* ── Magic sparkle: a quick rising bell glissando every 7-12s —
-         the "pixie dust" touch that actually sells "playful/Disney"    */
-      const sparkleNotes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
-      function sparkleTick() {
-        if (ctx.state === 'running') {
-          const r = keyRatio();
-          sparkleNotes.forEach((f, i) => {
-            setTimeout(() => pluckNote(f * r, 0.05, 0.35, 'sine'), i * 55);
-          });
-        }
-        setTimeout(sparkleTick, 7000 + Math.random() * 5000);
-      }
-      setTimeout(sparkleTick, 3000);
+      setTimeout(scheduleBattleFx, 1800);
 
       return { ctx, master };
     }
@@ -2809,7 +2863,7 @@
       /* common bright/warm female voice names across macOS, Windows,
          Chrome and Android — first match wins, else fall back gracefully */
       const preferredEN = ['Samantha', 'Google US English', 'Zira', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Ava', 'Allison', 'Susan', 'Fiona', 'Female'];
-      const preferredVI = ['Female', 'Nữ', 'Linh', 'HoaiMy', 'An'];
+      const preferredVI = ['HoaiMy', 'NamMinh', 'Female', 'Nữ', 'Linh', 'An', 'Vietnamese', 'Vietnam'];
       narratorVoiceEN = en.find(v => preferredEN.some(n => v.name.includes(n))) || en[0] || voices[0] || null;
       narratorVoiceVI = vi.find(v => preferredVI.some(n => v.name.includes(n))) || vi[0] || null;
     }
@@ -2822,17 +2876,33 @@
       const voice = narratorLang === 'vi' ? narratorVoiceVI : narratorVoiceEN;
       if (voice) u.voice = voice;
       u.lang = narratorLang === 'vi' ? 'vi-VN' : 'en-US';
-      u.pitch = 1.0; u.rate = 0.88; u.volume = 1.0; /* brighter, warmer, welcoming */
+      u.volume = 1.0;
+      /* Slower again + pitch pulled down toward neutral — per feedback
+         that even 1x still felt rushed, and asking for a warmer, more
+         "tình cảm" (tender/sincere) read: a touch lower pitch and a
+         more deliberate pace reads as far more heartfelt than a bright,
+         quick voice, which tends to come across as chipper/hurried    */
+      u.pitch = 0.98;
+      u.rate = narratorLang === 'vi' ? 1.05 : 0.85;
       return u;
     }
+    /* Voice narration is now fully independent of the ambient sound —
+       per feedback, the background music/battle-FX bed got annoying
+       and needed its own off switch, while narration should stay
+       available whenever wanted regardless of the ambient state. It
+       never actually needed the AudioContext anyway (speechSynthesis
+       is a totally separate browser API), so gating it on `voiceEnabled`
+       instead of `audio.ctx.state` is also just a more honest fix.    */
+    let voiceEnabled = false;
+    let hasSpokenWelcome = false;
     function speakWelcome() {
-      if (!('speechSynthesis' in window)) return;
+      if (!('speechSynthesis' in window) || !voiceEnabled) return;
       speechSynthesis.cancel();
       speechSynthesis.speak(makeUtterance(narratorLang === 'vi' ? WELCOME_MESSAGE_VI : WELCOME_MESSAGE));
     }
     let lastNarrated = -1;
     function narratePlanet(i, opts) {
-      if (!('speechSynthesis' in window) || !audio || audio.ctx.state !== 'running') return;
+      if (!('speechSynthesis' in window) || !voiceEnabled) return;
       /* never overlap — a fast scroll should cut to the new world, not
          queue every world skipped past; the one exception is right
          after the welcome greeting, which should finish its sentence   */
@@ -2842,24 +2912,39 @@
       lastNarrated = i;
     }
 
+    /* Ambient background sound (music pad + battle FX) — independent
+       on/off, no longer tied to narration at all                     */
     const sndBtn = document.getElementById('sndBtn');
     sndBtn.addEventListener('click', () => {
       if (!audio) {
         audio = initAudio();
-        sndBtn.textContent = 'SND ON';
+        sndBtn.textContent = narratorLang === 'vi' ? 'NHẠC NỀN: BẬT' : 'AMBIENT ON';
         sndBtn.classList.add('on');
-        speakWelcome(); /* "Welcome to Jason's Universe!" once, first time only */
-        narratePlanet(floorWorld, { keepQueue: true }); /* then the world already on screen */
       } else if (audio.ctx.state === 'suspended') {
         audio.ctx.resume();
-        sndBtn.textContent = 'SND ON';
+        sndBtn.textContent = narratorLang === 'vi' ? 'NHẠC NỀN: BẬT' : 'AMBIENT ON';
         sndBtn.classList.add('on');
-        narratePlanet(floorWorld);
       } else {
         audio.ctx.suspend();
-        sndBtn.textContent = 'SND OFF';
+        sndBtn.textContent = narratorLang === 'vi' ? 'NHẠC NỀN: TẮT' : 'AMBIENT OFF';
         sndBtn.classList.remove('on');
-        if ('speechSynthesis' in window) speechSynthesis.cancel();
+      }
+    });
+
+    /* Voice narration on/off — separate toggle, works with ambient
+       sound on OR off                                                 */
+    const voiceBtn = document.getElementById('voiceBtn');
+    voiceBtn.addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      voiceBtn.classList.toggle('on', voiceEnabled);
+      voiceBtn.textContent = voiceEnabled
+        ? (narratorLang === 'vi' ? 'THUYẾT MINH: BẬT' : 'NARRATE ON')
+        : (narratorLang === 'vi' ? 'THUYẾT MINH: TẮT' : 'NARRATE OFF');
+      if (voiceEnabled) {
+        if (!hasSpokenWelcome) { hasSpokenWelcome = true; speakWelcome(); narratePlanet(floorWorld, { keepQueue: true }); }
+        else narratePlanet(floorWorld);
+      } else if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
       }
     });
 
@@ -2875,11 +2960,14 @@
       document.getElementById('introHint').textContent = en
         ? 'scroll down to explore the universe'
         : 'cuộn xuống để khám phá vũ trụ';
-      document.getElementById('ipUpNext').textContent = en ? 'Up next' : 'Sắp tới';
+      document.getElementById('ipUpNext').textContent = en ? 'Now viewing' : 'Đang khám phá';
       mapBtn.textContent = en ? '☉ OVERVIEW' : '☉ TỔNG QUAN';
       sndBtn.textContent = sndBtn.classList.contains('on')
-        ? (en ? 'SND ON' : 'ÂM THANH: BẬT')
-        : (en ? 'SND OFF' : 'ÂM THANH: TẮT');
+        ? (en ? 'AMBIENT ON' : 'NHẠC NỀN: BẬT')
+        : (en ? 'AMBIENT OFF' : 'NHẠC NỀN: TẮT');
+      voiceBtn.textContent = voiceEnabled
+        ? (en ? 'NARRATE ON' : 'THUYẾT MINH: BẬT')
+        : (en ? 'NARRATE OFF' : 'THUYẾT MINH: TẮT');
       if (lastUpcoming >= 0) renderPanelContent(lastUpcoming);
       buildUniverseMap();
       detailLabelEl.textContent = stages()[floorWorld].title;
@@ -2976,7 +3064,7 @@
         label.setAttribute('y', (dotR + 12).toFixed(1));
         label.textContent = s.title;
         g.appendChild(dot); g.appendChild(label);
-        g.addEventListener('click', () => { scrollToWorld(i); closeUniverseMap(); });
+        g.addEventListener('click', () => { jumpToWorld(i); closeUniverseMap(); });
         g.addEventListener('mouseenter', e => showUmapTooltip(i, e.clientX, e.clientY));
         g.addEventListener('mousemove', e => showUmapTooltip(i, e.clientX, e.clientY));
         g.addEventListener('mouseleave', hideUmapTooltip);
@@ -2994,7 +3082,7 @@
         const label = document.createElement('span');
         label.textContent = s.title;
         chip.appendChild(dot); chip.appendChild(label);
-        chip.addEventListener('click', () => { scrollToWorld(i); closeUniverseMap(); });
+        chip.addEventListener('click', () => { jumpToWorld(i); closeUniverseMap(); });
         chip.addEventListener('mouseenter', e => showUmapTooltip(i, e.clientX, e.clientY));
         chip.addEventListener('mousemove', e => showUmapTooltip(i, e.clientX, e.clientY));
         chip.addEventListener('mouseleave', hideUmapTooltip);
@@ -3106,9 +3194,18 @@
       const floorP = Math.floor(wp);
       const fracP = wp - floorP;
       const nextIndex = (floorP + 1) % N;
-      if (floorWorld !== floorP) { detailLabelEl.textContent = stages()[floorP].title; focusTarget = 0; } /* new world arrives wide, not stuck zoomed-in from a previous click */
-      floorWorld = floorP;
-      if (floorP !== lastNarrated) narratePlanet(floorP); /* no-ops silently if sound is off */
+      /* While a manual jump (next/back/dots/map) is "pinned", the real
+         floorP is still slowly catching up from the OLD world — so skip
+         the natural floorP-driven info updates entirely this frame, or
+         they'd immediately revert what jumpToWorld() just set. Once the
+         real floorP actually reaches the pinned target, unpin and let
+         natural tracking resume (seamless — they already agree by then). */
+      if (pinnedInfoIndex !== -1 && floorP === pinnedInfoIndex) pinnedInfoIndex = -1;
+      if (pinnedInfoIndex === -1) {
+        if (floorWorld !== floorP) { detailLabelEl.textContent = stages()[floorP].title; focusTarget = 0; } /* new world arrives wide, not stuck zoomed-in from a previous click */
+        floorWorld = floorP;
+        if (floorP !== lastNarrated) narratePlanet(floorP); /* no-ops silently if sound is off */
+      }
 
       let scrollDelta = wp - prevWp;
       if (justWrapped) scrollDelta = 0;
@@ -3118,9 +3215,15 @@
       const infoRaw = Math.min(1, fracP / 0.5);
       const ic = infoRaw * infoRaw * (3.0 - 2.0 * infoRaw);
 
-      if (nextIndex !== lastUpcoming) {
-        lastUpcoming = nextIndex;
-        renderPanelContent(nextIndex);
+      /* The panel now tracks the CURRENT world (floorP) — matching the
+         voice narration and the detail-inset label — instead of the
+         next one. Previously this used nextIndex, which is always
+         floorP+1, so the panel permanently showed facts about a
+         DIFFERENT planet than whichever one was actually being
+         narrated/labeled at that moment.                              */
+      if (pinnedInfoIndex === -1 && floorP !== lastUpcoming) {
+        lastUpcoming = floorP;
+        renderPanelContent(floorP);
       }
       applyPanelClarity(ic, ACCENTS[floorP], ACCENTS[nextIndex], floorP);
 
