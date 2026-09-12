@@ -68,6 +68,12 @@
       pointer-events: none;
       z-index: 5;
     }
+    @media (max-width: 480px) {
+      /* the touch-specific copy runs a bit longer than the desktop
+         version — let it wrap instead of risking clipped edges on
+         narrow phones */
+      .hint { font-size: 8px; white-space: normal; text-align: center; width: 90vw; letter-spacing: .06em; }
+    }
 
     /* ── One-time prominent intro prompt — shown once on load, fades on
        the first real scroll (or after a few seconds regardless) ── */
@@ -2679,18 +2685,52 @@
     document.getElementById('navPrevBtn').addEventListener('click', () => jumpToWorld(floorWorld - 1));
     document.getElementById('navNextBtn').addEventListener('click', () => jumpToWorld(floorWorld + 1));
 
+    /* Touch was previously only wired for 2-finger rotate — a single-finger
+       tap (the mobile equivalent of a mouse click) never reached the
+       click-to-focus raycast at all, because that logic only listened for
+       'mousedown'/'mouseup', which phones don't reliably synthesize on a
+       bare window listener. Single-finger touchmove is deliberately left
+       alone here (no preventDefault) so it keeps driving native page
+       scroll — the same gesture that already advances world progress. */
     let lastTouch = null, lastPinch = null;
+    let touchDownPos = null, touchStartTime = 0, touchWasMulti = false;
+    window.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        touchDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        touchStartTime = Date.now();
+        touchWasMulti = false;
+      } else {
+        touchDownPos = null; /* a 2nd finger joined — this is a rotate gesture, not a tap */
+        touchWasMulti = true;
+      }
+    }, { passive: true });
     window.addEventListener('touchmove', e => {
       if (e.touches.length === 2) {
         const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         if (lastPinch) { rotVel.y += (mx - lastPinch.x) * 0.006; rotVel.x += (my - lastPinch.y) * 0.006; }
         lastPinch = { x: mx, y: my };
+        touchDownPos = null; touchWasMulti = true;
       } else {
         lastPinch = null;
       }
     }, { passive: true });
-    window.addEventListener('touchend', () => { lastPinch = null; });
+    window.addEventListener('touchend', e => {
+      lastPinch = null;
+      if (touchDownPos && !touchWasMulti && e.changedTouches.length === 1 && e.touches.length === 0) {
+        const t = e.changedTouches[0];
+        const moved = Math.hypot(t.clientX - touchDownPos.x, t.clientY - touchDownPos.y);
+        const dt = Date.now() - touchStartTime;
+        if (moved < 10 && dt < 500) { /* a real tap, not a swipe-scroll or a stray drag */
+          focusMouse.x = (t.clientX / window.innerWidth) * 2 - 1;
+          focusMouse.y = -(t.clientY / window.innerHeight) * 2 + 1;
+          focusRaycaster.setFromCamera(focusMouse, camera);
+          const hits = focusRaycaster.intersectObject(heroRoot, true);
+          if (hits.length) focusTarget = focusTarget > 0.5 ? 0 : 1; /* toggle, same as click */
+        }
+      }
+      touchDownPos = null;
+    });
 
     window.addEventListener('resize', () => {
       camera.aspect = W() / H();
@@ -2952,14 +2992,15 @@
        just the spoken narration — every static string + the panel
        content + the universe map labels all switch together, per
        feedback that EN should read as all-English and VI all-Vietnamese. */
+    const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     function applyUiLanguage() {
       const en = narratorLang === 'en';
-      document.getElementById('hintText').textContent = en
-        ? 'drag to rotate · scroll to explore · click to zoom'
-        : 'kéo để xoay · cuộn để khám phá · nhấp để zoom cận cảnh';
-      document.getElementById('introHint').textContent = en
-        ? 'scroll down to explore the universe'
-        : 'cuộn xuống để khám phá vũ trụ';
+      document.getElementById('hintText').textContent = isTouchDevice
+        ? (en ? 'two fingers to rotate · swipe to explore · tap to zoom' : 'hai ngón để xoay · vuốt để khám phá · chạm để zoom cận cảnh')
+        : (en ? 'drag to rotate · scroll to explore · click to zoom' : 'kéo để xoay · cuộn để khám phá · nhấp để zoom cận cảnh');
+      document.getElementById('introHint').textContent = isTouchDevice
+        ? (en ? 'swipe down to explore the universe' : 'vuốt xuống để khám phá vũ trụ')
+        : (en ? 'scroll down to explore the universe' : 'cuộn xuống để khám phá vũ trụ');
       document.getElementById('ipUpNext').textContent = en ? 'Now viewing' : 'Đang khám phá';
       mapBtn.textContent = en ? '☉ OVERVIEW' : '☉ TỔNG QUAN';
       sndBtn.textContent = sndBtn.classList.contains('on')
