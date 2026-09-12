@@ -197,6 +197,37 @@
     @media (max-width: 640px), (pointer: coarse) {
       #mapBtn { font-size: 14px; padding: 10px 14px; }
     }
+
+    /* ── Info-panel show/hide toggle — mobile only. On a phone the panel
+       (left side, up to 88vh tall) can dominate the whole screen and hide
+       the planet/universe behind it, so this lets the visitor deliberately
+       clear the view and bring the facts back on demand. Hidden entirely
+       on desktop/tablet, where the panel is narrow enough to coexist with
+       the scene without being asked.                                     */
+    #ipToggleBtn {
+      display: none;
+      position: fixed;
+      top: calc(66px + env(safe-area-inset-top, 0px));
+      left: calc(20px + env(safe-area-inset-left, 0px));
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid var(--gray-hi);
+      background: var(--surface);
+      padding: 8px 12px;
+      border-radius: 3px;
+      z-index: 21; /* above the info panel so it stays reachable even while it's open */
+      transition: color .2s, border-color .2s, background .2s;
+    }
+    #ipToggleBtn:hover { color: var(--accent); border-color: var(--accent); }
+    #ipToggleBtn.on { color: var(--accent); border-color: var(--accent); }
+    @media (max-width: 640px), (pointer: coarse) {
+      #ipToggleBtn { display: block; }
+    }
     #universeMap {
       position: fixed; inset: 0;
       background: rgba(11, 13, 18, .92);
@@ -328,7 +359,11 @@
       color: var(--gray-lo);
       z-index: 15;
       pointer-events: none;
+      transition: transform .35s ease;
     }
+    /* Slid fully off-screen by #ipToggleBtn on mobile — lets the visitor
+       clear the panel to see the whole planet/universe unobstructed.    */
+    #infoPanel.ip-collapsed { transform: translateY(-50%) translateX(-115%); }
     @media (max-width: 900px) and (min-width: 641px) {
       #infoPanel { width: min(210px, 30vw); padding: 22px 18px; }
     }
@@ -449,6 +484,7 @@
   <div id="langBtn">VOICE: EN</div>
   <div id="detailInset"><canvas id="detailCanvas"></canvas><div id="detailLabel">Sao Thủy</div></div>
   <div id="mapBtn">☉ TỔNG QUAN</div>
+  <div id="ipToggleBtn">THÔNG TIN: BẬT</div>
 
   <div id="universeMap" aria-hidden="true">
     <div id="universeMapClose">✕</div>
@@ -2429,85 +2465,85 @@
     const STAGES_VI = [
       {
         title: 'Sao Thủy', sub: 'Hành tinh đầu tiên',
-        desc: 'Miệng hố Caloris rộng 1.550 km — một trong những vết va chạm lớn nhất hệ mặt trời. Tàu MESSENGER của NASA khảo sát Sao Thủy từ 2011-2015, phát hiện băng nước trong các miệng hố ở cực — nơi không bao giờ có ánh nắng mặt trời chiếu tới.',
-        facts: [['Khoảng cách', '57.9 triệu km'], ['Đường kính', '4,879 km'], ['Nhiệt độ', '430°C / -180°C'], ['Chu kỳ', '88 ngày'], ['Sự sống', 'Không thể']],
+        desc: 'Hành tinh nhỏ nhất và gần Mặt Trời nhất trong hệ mặt trời. Gần như không có khí quyển, nhiệt độ dao động dữ dội từ 430°C ban ngày xuống −180°C ban đêm. Bề mặt cổ xưa chi chít hố thiên thạch, bị bức xạ Mặt Trời bắn phá không ngừng. Chưa có con người đặt chân đến đây. Tàu MESSENGER của NASA quay quanh Sao Thủy từ 2011 đến 2015; sứ mệnh BepiColombo của ESA–JAXA đã đến nơi vào năm 2025.',
+        facts: [['Khoảng cách', '57.9 triệu km'], ['Đường kính', '4,879 km'], ['Nhiệt độ', '−180°C → +430°C'], ['Chu kỳ', '88 ngày'], ['Vệ tinh', '0'], ['Sự sống', 'Không thể']],
       },
       {
         title: 'Sao Kim', sub: 'Hành tinh thứ hai',
-        desc: 'Tự quay ngược chiều — Mặt Trời mọc ở hướng Tây, và một ngày dài hơn cả một năm của nó. Bề mặt không thể sống, nhưng ở độ cao ~50km trong mây, nhiệt độ/áp suất giống Trái Đất lạ thường.',
-        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '464°C'], ['Chu kỳ', '225 ngày'], ['Sự sống', 'Không (giả thuyết ở mây)']],
+        desc: 'Hành tinh nóng nhất trong hệ mặt trời, dù không gần Mặt Trời nhất. Bầu khí quyển CO₂ dày đặc giữ nhiệt như hiệu ứng nhà kính mất kiểm soát, đẩy nhiệt độ bề mặt lên 465°C — nóng đủ để nấu chảy chì. Áp suất khí quyển gấp 92 lần Trái Đất, cùng với mưa axit sulfuric, khiến Sao Kim tức thì chết người. Các tàu Venera của Liên Xô từng đổ bộ vào thập niên 1970–80, chỉ tồn tại vài phút trước khi bị hủy hoại.',
+        facts: [['Khoảng cách', '108 triệu km'], ['Đường kính', '12,104 km'], ['Nhiệt độ', '+465°C (trung bình)'], ['Chu kỳ', '225 ngày'], ['Vệ tinh', '0'], ['Sự sống', 'Không (giả thuyết ở mây)']],
       },
       {
         title: 'Trái Đất', sub: 'Hành tinh xanh',
-        desc: 'Hành tinh duy nhất có nước lỏng trên bề mặt — 71% là đại dương. Mặt Trăng ổn định trục nghiêng suốt hàng triệu năm, giữ khí hậu đều đặn đủ để sự sống tồn tại hơn 3.8 tỷ năm.',
-        facts: [['Khoảng cách', '150 triệu km'], ['Đường kính', '12,742 km'], ['Nhiệt độ', '15°C trung bình'], ['Chu kỳ', '365 ngày'], ['Sự sống', 'Duy nhất có sự sống']],
+        desc: 'Thế giới duy nhất trong vũ trụ đã biết được xác nhận có sự sống. Hệ thống cân bằng tinh tế gồm đại dương nước lỏng, khí quyển thở được và từ trường chặn bức xạ nguy hiểm khiến nó đặc biệt phù hợp với sự sống. Nhiệt độ bề mặt trung bình khoảng 15°C. Không cần tàu vũ trụ đưa chúng ta đến — chúng ta tiến hóa ngay tại đây. Nhưng Trái Đất không bất khả xâm phạm: biến đổi khí hậu và các biến động địa chất đã nhiều lần đe dọa sự sống trên hành tinh xanh này.',
+        facts: [['Khoảng cách', '150 triệu km'], ['Đường kính', '12,742 km'], ['Nhiệt độ', '−89°C → +58°C'], ['Chu kỳ', '365 ngày'], ['Vệ tinh', '1'], ['Sự sống', 'Duy nhất có sự sống']],
       },
       {
         title: 'Sao Hỏa', sub: 'Hành tinh đỏ',
-        desc: 'Hẻm núi Valles Marineris dài gần 4.000 km, sâu 9 km — gấp hơn 10 lần Grand Canyon. Từng có sông và hồ nước lỏng hàng tỷ năm trước; NASA vẫn tìm dấu vết sự sống vi sinh cổ đại.',
-        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '-65°C trung bình'], ['Chu kỳ', '687 ngày'], ['Sự sống', 'Từng có nước lỏng']],
+        desc: 'Hành Tinh Đỏ, người hàng xóm được nghiên cứu nhiều nhất và là ứng viên sáng giá nhất cho sự định cư tương lai của con người. Bụi oxit sắt phủ khắp bề mặt tạo màu đỏ gỉ sét đặc trưng. Bầu khí quyển mỏng gần như không bảo vệ gì; nhiệt độ từ −128°C đến +20°C, với các cơn bão bụi toàn cầu kéo dài nhiều tháng. Tàu thám hiểm Perseverance của NASA đang hoạt động từ năm 2021. Chưa có con người đặt chân lên Sao Hỏa — nhưng các sứ mệnh có người lái nhắm đến thập niên 2030 đang được phát triển.',
+        facts: [['Khoảng cách', '228 triệu km'], ['Đường kính', '6,779 km'], ['Nhiệt độ', '−128°C → +20°C'], ['Chu kỳ', '687 ngày'], ['Vệ tinh', '2'], ['Sự sống', 'Từng có nước lỏng']],
       },
       {
         title: 'Sao Mộc', sub: 'Người khổng lồ khí',
-        desc: 'Vết Đỏ Lớn — cơn bão rộng gấp đôi Trái Đất, đã xoay hơn 350 năm. Bản thân hành tinh không thể sống, nhưng mặt trăng Europa ẩn chứa đại dương ngầm — một trong những nơi giàu tiềm năng sự sống nhất hệ mặt trời.',
-        facts: [['Khoảng cách', '778 triệu km'], ['Đường kính', '139,820 km'], ['Nhiệt độ', '-110°C'], ['Chu kỳ', '12 năm'], ['Sự sống', 'Không (Europa có tiềm năng)']],
+        desc: 'Gã khổng lồ không thể tranh cãi của hệ mặt trời, lớn đến mức có thể chứa tất cả các hành tinh khác cộng lại và còn dư chỗ. Vết Đỏ Lớn của nó là cơn bão đã hoành hành hơn 350 năm. Sao Mộc không có bề mặt rắn — thế giới khí xoáy với gió vượt 620 km/h và vành đai phóng xạ giết chết con người trong vài phút. Tàu Galileo của NASA đâm vào khí quyển năm 1995; tàu Juno đang quay quanh từ năm 2016.',
+        facts: [['Khoảng cách', '778 triệu km'], ['Đường kính', '142,984 km'], ['Nhiệt độ', '−145°C (đỉnh mây)'], ['Chu kỳ', '12 năm'], ['Vệ tinh', '95'], ['Sự sống', 'Không (Europa có tiềm năng)']],
       },
       {
         title: 'Sao Thổ', sub: 'Hành tinh vành đai',
-        desc: 'Vành đai rộng 282.000 km nhưng chỉ dày khoảng 10 mét, gồm hàng tỷ mảnh băng đá. Hai mặt trăng Enceladus và Titan có đại dương/hồ methane ngầm — ứng viên hàng đầu tìm sự sống ngoài Trái Đất.',
-        facts: [['Khoảng cách', '1.43 tỷ km'], ['Đường kính', '116,460 km'], ['Nhiệt độ', '-140°C'], ['Chu kỳ', '29 năm'], ['Sự sống', 'Không (Titan có tiềm năng)']],
+        desc: 'Viên ngọc có vành của hệ mặt trời, với vành đai trải dài 282.000 km nhưng dày chưa đến một km, làm từ băng và đá. Dù huy hoàng, Sao Thổ là hành tinh có mật độ thấp nhất trong hệ mặt trời — về lý thuyết có thể nổi trên mặt nước. Ẩn sau vẻ đẹp, gió gầm rú đến 1.800 km/h và nhiệt độ xuống −178°C. Tàu Cassini của NASA dành 13 năm quay quanh Sao Thổ từ 2004 đến 2017, lập bản đồ vành đai và các mặt trăng với mức độ chi tiết phi thường.',
+        facts: [['Khoảng cách', '1.43 tỷ km'], ['Đường kính', '116,460 km'], ['Nhiệt độ', '−178°C (trung bình)'], ['Chu kỳ', '29 năm'], ['Vệ tinh', '146'], ['Sự sống', 'Không (Titan có tiềm năng)']],
       },
       {
         title: 'Sao Thiên Vương', sub: 'Người khổng lồ băng',
-        desc: 'Nghiêng gần 98° — tự quay như một quả bóng lăn quanh Mặt Trời, tạo mùa đông tối kéo dài 21 năm. Màu xanh lam-lục đến từ khí methane hấp thụ ánh sáng đỏ.',
-        facts: [['Khoảng cách', '2.87 tỷ km'], ['Đường kính', '50,724 km'], ['Nhiệt độ', '-195°C'], ['Chu kỳ', '84 năm'], ['Sự sống', 'Không thể']],
+        desc: 'Gã khổng lồ băng lăn qua không gian theo kiểu nằm nghiêng, nghiêng trục gần 98 độ — có thể là di sản của một vụ va chạm thảm khốc thời cổ đại. Với −224°C, nó giữ kỷ lục khí quyển lạnh nhất trong hệ mặt trời. Gió xé qua bầu khí quyển methane với tốc độ 900 km/h, tạo màu xanh lam đặc trưng. Chỉ một tàu vũ trụ từng ghé thăm: Voyager 2 của NASA bay qua tháng 1/1986 — và nhân loại chưa gửi thêm bất cứ thứ gì quay lại.',
+        facts: [['Khoảng cách', '2.87 tỷ km'], ['Đường kính', '50,724 km'], ['Nhiệt độ', '−224°C (thấp nhất)'], ['Chu kỳ', '84 năm'], ['Vệ tinh', '27'], ['Sự sống', 'Không thể']],
       },
       {
         title: 'Sao Hải Vương', sub: 'Hành tinh xa nhất',
-        desc: 'Hành tinh nhiều gió nhất hệ mặt trời — hơn 2.100 km/h, gấp 9 lần bão mạnh nhất Trái Đất. Được tìm ra năm 1846 bằng toán học, trước khi ai nhìn thấy nó qua kính viễn vọng.',
-        facts: [['Khoảng cách', '4.5 tỷ km'], ['Đường kính', '49,244 km'], ['Nhiệt độ', '-200°C'], ['Chu kỳ', '165 năm'], ['Sự sống', 'Không thể']],
+        desc: 'Hành tinh xa nhất trong hệ mặt trời, tối tăm, đóng băng và bị quét bởi những cơn gió dữ dội nhất: 2.100 km/h — nhanh hơn tốc độ âm thanh. Dù nhận gần như không có ánh sáng Mặt Trời, nhiệt nội tại khổng lồ vẫn thúc đẩy các cơn bão hung tàn này. Nhiệt độ xuống −218°C. Màu xanh coban sâu đến từ methane hấp thụ ánh đỏ từ Mặt Trời. Chỉ Voyager 2 từng đến đây, bay qua tháng 8/1989 — khiến Sao Hải Vương trở thành hành tinh xa nhất từng được khám phá bởi bất kỳ tàu vũ trụ nào.',
+        facts: [['Khoảng cách', '4.5 tỷ km'], ['Đường kính', '49,244 km'], ['Nhiệt độ', '−218°C (bề mặt)'], ['Chu kỳ', '165 năm'], ['Vệ tinh', '16'], ['Sự sống', 'Không thể']],
       },
     ];
     const STAGES_EN = [
       {
         title: 'Mercury', sub: 'First planet',
-        desc: 'The Caloris Basin spans 1,550 km — one of the largest impact scars in the solar system. NASA\'s MESSENGER spacecraft studied Mercury from 2011-2015, and found water ice hiding in polar craters that never see sunlight.',
-        facts: [['Distance', '57.9 million km'], ['Diameter', '4,879 km'], ['Temperature', '430°C / -180°C'], ['Orbital period', '88 days'], ['Life', 'Impossible']],
+        desc: 'The smallest and innermost planet in our solar system. With almost no atmosphere, temperatures swing violently from 430°C in daylight to −180°C at night. Its ancient, cratered surface is blasted raw by solar radiation with nothing to shield it. No human has ever set foot here. NASA\'s MESSENGER spacecraft orbited Mercury from 2011 to 2015; the joint ESA–JAXA mission BepiColombo arrived in 2025.',
+        facts: [['Distance', '57.9 million km'], ['Diameter', '4,879 km'], ['Temperature', '−180°C → +430°C'], ['Orbital period', '88 days'], ['Moons', '0'], ['Life', 'Impossible']],
       },
       {
         title: 'Venus', sub: 'Second planet',
-        desc: 'Spins backward — the Sun rises in the west, and one day is longer than its own year. The surface can\'t support life, but ~50km up in the clouds, temperature and pressure are oddly Earth-like.',
-        facts: [['Distance', '108 million km'], ['Diameter', '12,104 km'], ['Temperature', '464°C'], ['Orbital period', '225 days'], ['Life', 'No (cloud theory only)']],
+        desc: 'The hottest planet in our solar system, despite not being closest to the Sun. A dense atmosphere of carbon dioxide traps heat in a runaway greenhouse effect, pushing surface temperatures to a relentless 465°C — hot enough to melt lead. Crushing atmospheric pressure, 92 times that of Earth, combines with clouds of sulfuric acid to make Venus instantly lethal. Soviet Venera probes briefly touched down in the 1970s and 80s, surviving only minutes before being destroyed.',
+        facts: [['Distance', '108 million km'], ['Diameter', '12,104 km'], ['Temperature', '+465°C (avg)'], ['Orbital period', '225 days'], ['Moons', '0'], ['Life', 'No (cloud theory only)']],
       },
       {
         title: 'Earth', sub: 'The blue planet',
-        desc: 'The only planet with liquid water on its surface — 71% ocean. The Moon has stabilized Earth\'s axial tilt for billions of years, keeping the climate steady enough for life to endure over 3.8 billion years.',
-        facts: [['Distance', '150 million km'], ['Diameter', '12,742 km'], ['Temperature', '15°C average'], ['Orbital period', '365 days'], ['Life', 'The only known one']],
+        desc: 'The only world in the known universe confirmed to harbor life. A finely tuned system of liquid oceans, breathable atmosphere, and a magnetic field that deflects lethal radiation makes it uniquely hospitable. Average surface temperature sits near 15°C. No spacecraft had to bring us here — we evolved on this world. Yet Earth is not invulnerable: climate change, mass extinctions, and geologic upheaval have repeatedly threatened life on this pale blue dot we call home.',
+        facts: [['Distance', '150 million km'], ['Diameter', '12,742 km'], ['Temperature', '−89°C → +58°C'], ['Orbital period', '365 days'], ['Moons', '1'], ['Life', 'The only known one']],
       },
       {
         title: 'Mars', sub: 'The red planet',
-        desc: 'Valles Marineris stretches nearly 4,000 km long and 9 km deep — over 10 times the Grand Canyon. Rivers and lakes once flowed here billions of years ago; NASA still searches for traces of ancient microbial life.',
-        facts: [['Distance', '228 million km'], ['Diameter', '6,779 km'], ['Temperature', '-65°C average'], ['Orbital period', '687 days'], ['Life', 'Once had liquid water']],
+        desc: 'The Red Planet, humanity\'s most studied neighbor and the most likely candidate for future human settlement. Iron oxide dust coats its surface in that iconic rust hue. A thin atmosphere offers almost no protection; temperatures range from −128°C to +20°C, and planet-wide dust storms can last for months. NASA\'s Perseverance rover has been exploring since 2021. No human has walked on Mars yet — but crewed missions targeting the 2030s are actively in development.',
+        facts: [['Distance', '228 million km'], ['Diameter', '6,779 km'], ['Temperature', '−128°C → +20°C'], ['Orbital period', '687 days'], ['Moons', '2'], ['Life', 'Once had liquid water']],
       },
       {
         title: 'Jupiter', sub: 'Gas giant',
-        desc: 'The Great Red Spot — a storm twice the width of Earth, spinning for over 350 years. Jupiter itself can\'t host life, but its moon Europa hides a subsurface ocean, one of the most promising places for life in the solar system.',
-        facts: [['Distance', '778 million km'], ['Diameter', '139,820 km'], ['Temperature', '-110°C'], ['Orbital period', '12 years'], ['Life', 'No (Europa is promising)']],
+        desc: 'The undisputed giant of our solar system, so massive it could contain every other planet combined with room to spare. Its Great Red Spot is a storm that has raged for over 350 years. Jupiter has no solid surface — a crushing, swirling world of gas with winds exceeding 620 km/h and radiation belts lethal to any human within minutes. NASA\'s Galileo probe plunged into its atmosphere in 1995; the Juno spacecraft has been orbiting since 2016.',
+        facts: [['Distance', '778 million km'], ['Diameter', '142,984 km'], ['Temperature', '−145°C (cloud tops)'], ['Orbital period', '12 years'], ['Moons', '95'], ['Life', 'No (Europa is promising)']],
       },
       {
         title: 'Saturn', sub: 'The ringed planet',
-        desc: 'Rings spanning 282,000 km yet only about 10 meters thick, made of billions of ice and rock fragments. Two moons, Enceladus and Titan, have subsurface oceans and methane lakes — leading candidates for life beyond Earth.',
-        facts: [['Distance', '1.43 billion km'], ['Diameter', '116,460 km'], ['Temperature', '-140°C'], ['Orbital period', '29 years'], ['Life', 'No (Titan is promising)']],
+        desc: 'The ringed jewel of our solar system, its iconic rings stretching 282,000 kilometers wide yet barely a kilometer thick, made of ice and rock. Despite its grandeur, Saturn is the least dense planet in the solar system — it would theoretically float on water. Beneath its beauty, winds howl at 1,800 km/h and temperatures plunge to −178°C. NASA\'s Cassini spacecraft spent 13 remarkable years orbiting Saturn from 2004 to 2017, mapping its rings and moons in extraordinary detail.',
+        facts: [['Distance', '1.43 billion km'], ['Diameter', '116,460 km'], ['Temperature', '−178°C (avg)'], ['Orbital period', '29 years'], ['Moons', '146'], ['Life', 'No (Titan is promising)']],
       },
       {
         title: 'Uranus', sub: 'Ice giant',
-        desc: 'Tilted nearly 98° — it rolls around the Sun like a wheel, giving one hemisphere a 21-year dark winter. Its pale blue-green color comes from methane absorbing red light.',
-        facts: [['Distance', '2.87 billion km'], ['Diameter', '50,724 km'], ['Temperature', '-195°C'], ['Orbital period', '84 years'], ['Life', 'Impossible']],
+        desc: 'The ice giant that rolls through space on its side, tilted at nearly 98 degrees — likely the legacy of a catastrophic ancient collision. At −224°C, it holds the record as the coldest planetary atmosphere in our solar system. Winds tear through its methane-laced atmosphere at 900 km/h, producing its distinctive pale blue-green color. Only one spacecraft has ever visited: NASA\'s Voyager 2 flew past in January 1986 — and humanity has sent nothing back since.',
+        facts: [['Distance', '2.87 billion km'], ['Diameter', '50,724 km'], ['Temperature', '−224°C (min)'], ['Orbital period', '84 years'], ['Moons', '27'], ['Life', 'Impossible']],
       },
       {
         title: 'Neptune', sub: 'The farthest planet',
-        desc: 'The windiest planet in the solar system — over 2,100 km/h, nine times Earth\'s strongest storms. Discovered in 1846 through mathematics, before anyone ever saw it through a telescope.',
-        facts: [['Distance', '4.5 billion km'], ['Diameter', '49,244 km'], ['Temperature', '-200°C'], ['Orbital period', '165 years'], ['Life', 'Impossible']],
+        desc: 'The most remote planet in our solar system, dark, frozen, and lashed by the most violent winds anywhere: 2,100 km/h — faster than the speed of sound. Despite receiving almost no sunlight, tremendous internal heat drives these ferocious storms. Temperatures fall to −218°C. Its deep cobalt blue comes from methane absorbing red light from the Sun. Only Voyager 2 has ever visited, flying past in August 1989 — making Neptune the most distant planet ever explored by any spacecraft.',
+        facts: [['Distance', '4.5 billion km'], ['Diameter', '49,244 km'], ['Temperature', '−218°C (surface)'], ['Orbital period', '165 years'], ['Moons', '16'], ['Life', 'Impossible']],
       },
     ];
     let narratorLang = 'en'; // 'en' | 'vi' — drives the ENTIRE UI's language, not just voice
@@ -2587,7 +2623,12 @@
          glance the whole time, not gradually sharpening in.            */
       infoPanel.style.opacity = '1';
       infoPanel.style.filter = 'none';
-      infoPanel.style.transform = 'translateY(-50%) scale(1)';
+      /* This runs every frame and previously always forced the panel
+         fully on-screen via an inline transform — which, being inline,
+         silently beat the #infoPanel.ip-collapsed CSS rule every single
+         frame, so the mobile hide/show toggle below could never actually
+         keep the panel hidden. Fold that same collapsed offset in here. */
+      infoPanel.style.transform = 'translateY(-50%) scale(1)' + (infoPanelHidden ? ' translateX(-115%)' : '');
       const r = (accFloor[0] + (accNext[0] - accFloor[0]) * ic) | 0;
       const g = (accFloor[1] + (accNext[1] - accFloor[1]) * ic) | 0;
       const b = (accFloor[2] + (accNext[2] - accFloor[2]) * ic) | 0;
@@ -2870,24 +2911,24 @@
        the "the character announces the user to go" cue the user asked for,
        so the voice itself invites you to keep scrolling onward.          */
     const NARRATION = [
-      "This is Mercury, the closest world to the Sun. Its gray, cratered surface bears the Caloris Basin, one of the largest impact scars in the solar system. Daytime scorches past four hundred thirty degrees Celsius; night falls to minus one eighty. NASA's MESSENGER spacecraft studied Mercury from 2011 to 2015, and found something surprising — water ice, hiding in craters near the poles that never see sunlight. Now, let's drift onward, deeper, toward Venus.",
-      "Venus turns backward. Its day is longer than its year, and the Sun rises in the west. Beneath thick clouds of sulfuric acid, the surface reaches four hundred sixty four degrees Celsius, hot enough to melt lead. Yet fifty kilometers up, in the clouds, conditions turn almost gentle. Some still wonder if something could live there. Keep going — Earth is just ahead.",
-      "Your home. The only world known to hold liquid water on its surface, and the only one known to hold life. A single moon, born from an ancient collision, has quietly stabilized this planet's tilt for billions of years, the reason the seasons here have stayed gentle enough for life to endure. Let's continue on, to the red planet, Mars.",
-      "The red planet, colored by iron oxide. Valles Marineris cuts nearly four thousand kilometers across its face, ten times longer than the Grand Canyon. Rivers once ran here, billions of years ago. Nothing lives on Mars today, but scientists still search its ancient rock for what might have once. Onward now, to the giant, Jupiter.",
-      "The giant. A storm called the Great Red Spot has raged here for over three hundred years, wide enough to swallow the Earth twice over. Jupiter itself could never support life, but its moon Europa hides a vast ocean beneath its ice, one of the most promising places to search for life beyond Earth. Let's drift further, to the rings of Saturn.",
-      "Crowned by rings spanning two hundred eighty two thousand kilometers, yet barely ten meters thick, billions of fragments of ice and rock, held in perfect order. At its north pole, a six sided storm turns, wider than some of its own moons. Two of those moons, Titan and Enceladus, may hide oceans of their own. Now, onward to a world tipped on its side, Uranus.",
-      "Tipped almost completely on its side, Uranus rolls around the Sun like a wheel, not a top. A collision, long ago, knocked it over, and gave one hemisphere a winter that lasts twenty one years in darkness. Its pale blue green comes from methane, quietly absorbing the red light of a distant Sun. Just a little further now, to Neptune.",
-      "The outermost world, discovered not by eye but by mathematics, its existence predicted before anyone ever saw it through a telescope. Here, the fastest winds in the solar system tear past two thousand one hundred kilometers an hour, howling through the darkest, coldest reaches of our system. And now, we begin again — back to Mercury.",
+      "Mercury — the smallest and innermost planet in our solar system. With almost no atmosphere, temperatures swing violently from four hundred thirty degrees Celsius in daylight to minus one eighty at night. Its ancient, cratered surface is blasted raw by solar radiation with nothing to shield it. No human has ever set foot here. NASA's MESSENGER spacecraft orbited Mercury from 2011 to 2015; the joint ESA–JAXA mission BepiColombo arrived in 2025, becoming the latest eyes on this extreme, sun-scorched world. Now, let's drift onward, deeper, toward Venus.",
+      "Venus — the hottest planet in our solar system, despite not being closest to the Sun. A dense atmosphere of carbon dioxide traps heat in a runaway greenhouse effect, pushing surface temperatures to a relentless four hundred sixty five degrees Celsius — hot enough to melt lead. Crushing atmospheric pressure, ninety two times that of Earth, combines with clouds of sulfuric acid to make Venus instantly lethal. Soviet Venera probes briefly touched down in the 1970s and 80s, surviving only minutes before being destroyed. Keep going — Earth is just ahead.",
+      "Earth — the only world in the known universe confirmed to harbor life. A finely tuned system of liquid oceans, breathable atmosphere, and a magnetic field that deflects lethal radiation makes it uniquely hospitable. Average surface temperature sits near fifteen degrees Celsius. No spacecraft had to bring us here — we evolved on this world. Yet Earth is not invulnerable: climate change, mass extinctions, and geologic upheaval have repeatedly threatened life on this pale blue dot we call home. Let's continue on, to the red planet, Mars.",
+      "Mars — the Red Planet, humanity's most studied neighbor and the most likely candidate for future human settlement. Iron oxide dust coats its surface in that iconic rust hue. A thin atmosphere offers almost no protection; temperatures range from minus one twenty eight to plus twenty degrees Celsius, and planet-wide dust storms can last for months. NASA's Perseverance rover has been exploring since 2021. No human has walked on Mars yet — but crewed missions targeting the 2030s are actively in development. Onward now, to the giant, Jupiter.",
+      "Jupiter — the undisputed giant of our solar system, so massive it could contain every other planet combined with room to spare. Its Great Red Spot is a storm that has raged for over three hundred fifty years. Jupiter has no solid surface — a crushing, swirling world of gas with winds exceeding six hundred twenty kilometers an hour, and radiation belts lethal to any human within minutes. NASA's Galileo probe plunged into its atmosphere in 1995; the Juno spacecraft has been orbiting since 2016. Let's drift further, to the rings of Saturn.",
+      "Saturn — the ringed jewel of our solar system, its iconic rings stretching two hundred eighty two thousand kilometers wide, yet barely a kilometer thick, made of ice and rock. Despite its grandeur, Saturn is the least dense planet in the solar system — it would theoretically float on water. Beneath its beauty, winds howl at eighteen hundred kilometers an hour, and temperatures plunge to minus one seventy eight. NASA's Cassini spacecraft spent thirteen remarkable years orbiting Saturn, from 2004 to 2017, mapping its rings and moons in extraordinary detail. Now, onward to a world tipped on its side, Uranus.",
+      "Uranus — the ice giant that rolls through space on its side, tilted at nearly ninety eight degrees, likely the legacy of a catastrophic ancient collision. At minus two hundred twenty four degrees, it holds the record as the coldest planetary atmosphere in our solar system. Winds tear through its methane-laced atmosphere at nine hundred kilometers an hour, producing its distinctive pale blue-green color. Only one spacecraft has ever visited: NASA's Voyager 2 flew past in January 1986, and humanity has sent nothing back since. Just a little further now, to Neptune.",
+      "Neptune — the most remote planet in our solar system, dark, frozen, and lashed by the most violent winds anywhere: two thousand one hundred kilometers an hour, faster than the speed of sound. Despite receiving almost no sunlight, tremendous internal heat drives these ferocious storms. Temperatures fall to minus two eighteen. Its deep cobalt blue comes from methane absorbing red light from the Sun. Only Voyager 2 has ever visited, flying past in August 1989, making Neptune the most distant planet ever explored by any spacecraft. And now, we begin again — back to Mercury.",
     ];
     const NARRATION_VI = [
-      "Đây là Sao Thủy, hành tinh gần Mặt Trời nhất. Bề mặt xám xịt của nó mang miệng hố Caloris rộng 1.550 ki-lô-mét, một trong những vết va chạm lớn nhất hệ mặt trời. Ban ngày nóng hơn bốn trăm ba mươi độ C, ban đêm lạnh xuống âm một trăm tám mươi độ. Tàu vũ trụ MESSENGER của NASA đã khảo sát Sao Thủy từ năm 2011 đến 2015, và phát hiện điều bất ngờ — băng nước, ẩn trong các miệng hố gần cực không bao giờ có ánh nắng chiếu tới. Bây giờ, hãy cùng trôi sâu hơn, đến với Sao Kim.",
-      "Sao Kim tự quay ngược chiều — một ngày ở đây dài hơn cả một năm, và Mặt Trời mọc ở hướng Tây. Dưới lớp mây axit sulfuric dày đặc, bề mặt nóng tới bốn trăm sáu mươi bốn độ C, đủ nóng để làm chảy chì. Nhưng ở độ cao năm mươi ki-lô-mét trong mây, điều kiện lại gần như dễ chịu. Một số nhà khoa học vẫn tự hỏi liệu có gì đó có thể sống ở đó không. Hãy tiếp tục — Trái Đất đang ở ngay phía trước.",
-      "Ngôi nhà của bạn. Hành tinh duy nhất được biết có nước lỏng trên bề mặt, và cũng là nơi duy nhất được biết có sự sống. Một Mặt Trăng, sinh ra từ một va chạm cổ xưa, đã âm thầm giữ ổn định trục nghiêng của hành tinh này suốt hàng tỷ năm — lý do khí hậu nơi đây đủ hiền hòa để sự sống tồn tại. Hãy cùng đi tiếp, đến với hành tinh đỏ, Sao Hỏa.",
-      "Hành tinh đỏ, mang màu sắc từ oxit sắt. Hẻm núi Valles Marineris trải dài gần bốn nghìn ki-lô-mét, dài gấp mười lần hẻm núi Grand Canyon. Từng có những dòng sông chảy ở đây, hàng tỷ năm trước. Ngày nay không có sự sống trên Sao Hỏa, nhưng các nhà khoa học vẫn tìm kiếm dấu vết trong đá cổ của nó. Tiến lên nào, đến với người khổng lồ, Sao Mộc.",
-      "Người khổng lồ. Một cơn bão mang tên Vết Đỏ Lớn đã hoành hành nơi đây hơn ba trăm năm, rộng đến mức có thể nuốt trọn Trái Đất hai lần. Bản thân Sao Mộc không thể có sự sống, nhưng mặt trăng Europa của nó ẩn chứa một đại dương khổng lồ dưới lớp băng — một trong những nơi giàu tiềm năng sự sống nhất ngoài Trái Đất. Hãy trôi xa hơn nữa, đến với vành đai của Sao Thổ.",
-      "Được tôn vinh bởi vành đai trải rộng hai trăm tám mươi hai nghìn ki-lô-mét, nhưng chỉ dày khoảng mười mét — hàng tỷ mảnh băng và đá, giữ trật tự hoàn hảo. Ở cực bắc, một cơn bão sáu cạnh xoay tròn, rộng hơn cả một số mặt trăng của nó. Hai trong số những mặt trăng ấy, Titan và Enceladus, có thể đang ẩn chứa đại dương riêng. Giờ hãy tiến đến một thế giới nằm nghiêng hẳn sang một bên, Sao Thiên Vương.",
-      "Nghiêng gần như hoàn toàn sang một bên, Sao Thiên Vương lăn quanh Mặt Trời như một bánh xe, chứ không như một con quay. Một va chạm từ rất lâu đã lật nghiêng nó, khiến một nửa hành tinh chìm trong mùa đông tối suốt hai mươi mốt năm. Màu xanh lam-lục nhạt của nó đến từ khí methane, âm thầm hấp thụ ánh sáng đỏ từ một Mặt Trời xa xôi. Chỉ còn một chút nữa thôi, đến với Sao Hải Vương.",
-      "Hành tinh xa nhất, được tìm ra không phải bằng mắt thường, mà bằng toán học — sự tồn tại của nó được dự đoán trước khi ai đó nhìn thấy nó qua kính viễn vọng. Ở đây, những cơn gió nhanh nhất hệ mặt trời gào thét với tốc độ hơn hai nghìn một trăm ki-lô-mét một giờ, xuyên qua vùng tối tăm và lạnh giá nhất của hệ mặt trời. Và giờ, chúng ta lại bắt đầu — quay về với Sao Thủy.",
+      "Sao Thủy — hành tinh nhỏ nhất và gần Mặt Trời nhất trong hệ mặt trời. Gần như không có khí quyển, nhiệt độ dao động dữ dội từ bốn trăm ba mươi độ C ban ngày xuống âm một trăm tám mươi độ ban đêm. Bề mặt cổ xưa chi chít hố thiên thạch, bị bức xạ Mặt Trời bắn phá không ngừng. Chưa có con người đặt chân đến đây. Tàu MESSENGER của NASA quay quanh Sao Thủy từ 2011 đến 2015; sứ mệnh BepiColombo của ESA–JAXA đã đến nơi vào năm 2025. Bây giờ, hãy cùng trôi sâu hơn, đến với Sao Kim.",
+      "Sao Kim — hành tinh nóng nhất trong hệ mặt trời, dù không gần Mặt Trời nhất. Bầu khí quyển carbon dioxide dày đặc giữ nhiệt như hiệu ứng nhà kính mất kiểm soát, đẩy nhiệt độ bề mặt lên bốn trăm sáu mươi lăm độ C — nóng đủ để nấu chảy chì. Áp suất khí quyển gấp chín mươi hai lần Trái Đất, cùng với mưa axit sulfuric, khiến Sao Kim tức thì chết người. Các tàu Venera của Liên Xô từng đổ bộ vào thập niên 1970 tới 1980, chỉ tồn tại vài phút trước khi bị hủy hoại. Hãy tiếp tục — Trái Đất đang ở ngay phía trước.",
+      "Trái Đất — thế giới duy nhất trong vũ trụ đã biết được xác nhận có sự sống. Hệ thống cân bằng tinh tế gồm đại dương nước lỏng, khí quyển thở được và từ trường chặn bức xạ nguy hiểm khiến nó đặc biệt phù hợp với sự sống. Nhiệt độ bề mặt trung bình khoảng mười lăm độ C. Không cần tàu vũ trụ đưa chúng ta đến — chúng ta tiến hóa ngay tại đây. Nhưng Trái Đất không bất khả xâm phạm: biến đổi khí hậu và các biến động địa chất đã nhiều lần đe dọa sự sống trên hành tinh xanh này. Hãy cùng đi tiếp, đến với hành tinh đỏ, Sao Hỏa.",
+      "Sao Hỏa — Hành Tinh Đỏ, người hàng xóm được nghiên cứu nhiều nhất và là ứng viên sáng giá nhất cho sự định cư tương lai của con người. Bụi oxit sắt phủ khắp bề mặt tạo màu đỏ gỉ sét đặc trưng. Bầu khí quyển mỏng gần như không bảo vệ gì; nhiệt độ từ âm một trăm hai mươi tám đến dương hai mươi độ C, với các cơn bão bụi toàn cầu kéo dài nhiều tháng. Tàu thám hiểm Perseverance của NASA đang hoạt động từ năm 2021. Chưa có con người đặt chân lên Sao Hỏa — nhưng các sứ mệnh có người lái nhắm đến thập niên 2030 đang được phát triển. Tiến lên nào, đến với người khổng lồ, Sao Mộc.",
+      "Sao Mộc — gã khổng lồ không thể tranh cãi của hệ mặt trời, lớn đến mức có thể chứa tất cả các hành tinh khác cộng lại và còn dư chỗ. Vết Đỏ Lớn của nó là cơn bão đã hoành hành hơn ba trăm năm mươi năm. Sao Mộc không có bề mặt rắn — thế giới khí xoáy với gió vượt sáu trăm hai mươi ki-lô-mét một giờ, và vành đai phóng xạ giết chết con người trong vài phút. Tàu Galileo của NASA đâm vào khí quyển năm 1995; tàu Juno đang quay quanh từ năm 2016. Hãy trôi xa hơn nữa, đến với vành đai của Sao Thổ.",
+      "Sao Thổ — viên ngọc có vành của hệ mặt trời, với vành đai trải dài hai trăm tám mươi hai nghìn ki-lô-mét nhưng dày chưa đến một ki-lô-mét, làm từ băng và đá. Dù huy hoàng, Sao Thổ là hành tinh có mật độ thấp nhất trong hệ mặt trời — về lý thuyết có thể nổi trên mặt nước. Ẩn sau vẻ đẹp, gió gầm rú đến một nghìn tám trăm ki-lô-mét một giờ, và nhiệt độ xuống âm một trăm bảy mươi tám độ. Tàu Cassini của NASA dành mười ba năm quay quanh Sao Thổ, từ 2004 đến 2017, lập bản đồ vành đai và các mặt trăng với mức độ chi tiết phi thường. Giờ hãy tiến đến một thế giới nằm nghiêng hẳn sang một bên, Sao Thiên Vương.",
+      "Sao Thiên Vương — gã khổng lồ băng lăn qua không gian theo kiểu nằm nghiêng, nghiêng trục gần chín mươi tám độ — có thể là di sản của một vụ va chạm thảm khốc thời cổ đại. Với âm hai trăm hai mươi bốn độ, nó giữ kỷ lục khí quyển lạnh nhất trong hệ mặt trời. Gió xé qua bầu khí quyển methane với tốc độ chín trăm ki-lô-mét một giờ, tạo màu xanh lam đặc trưng. Chỉ một tàu vũ trụ từng ghé thăm: Voyager 2 của NASA bay qua tháng 1 năm 1986 — và nhân loại chưa gửi thêm bất cứ thứ gì quay lại. Chỉ còn một chút nữa thôi, đến với Sao Hải Vương.",
+      "Sao Hải Vương — hành tinh xa nhất trong hệ mặt trời, tối tăm, đóng băng và bị quét bởi những cơn gió dữ dội nhất: hai nghìn một trăm ki-lô-mét một giờ — nhanh hơn tốc độ âm thanh. Dù nhận gần như không có ánh sáng Mặt Trời, nhiệt nội tại khổng lồ vẫn thúc đẩy các cơn bão hung tàn này. Nhiệt độ xuống âm hai trăm mười tám độ. Màu xanh coban sâu đến từ methane hấp thụ ánh đỏ từ Mặt Trời. Chỉ Voyager 2 từng đến đây, bay qua tháng 8 năm 1989 — khiến Sao Hải Vương trở thành hành tinh xa nhất từng được khám phá bởi bất kỳ tàu vũ trụ nào. Và giờ, chúng ta lại bắt đầu — quay về với Sao Thủy.",
     ];
     /* Vietnamese system voices are far less consistently available than
        English across browsers/OSes (Web Speech API can't guarantee one
@@ -2988,11 +3029,31 @@
       }
     });
 
+    /* Info-panel show/hide toggle (mobile only, see #ipToggleBtn CSS).
+       On a phone the panel can cover most of the screen and hide the
+       planet/universe behind it — this lets the visitor deliberately
+       clear it away, and starts collapsed by default on a touch/narrow
+       screen so the first thing they see is the whole scene, not the
+       panel. */
+    const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const ipToggleBtn = document.getElementById('ipToggleBtn');
+    let infoPanelHidden = false;
+    function setInfoPanelHidden(hidden) {
+      infoPanelHidden = hidden;
+      infoPanel.classList.toggle('ip-collapsed', hidden);
+      ipToggleBtn.classList.toggle('on', !hidden);
+      const en = narratorLang === 'en';
+      ipToggleBtn.textContent = hidden
+        ? (en ? 'INFO OFF' : 'THÔNG TIN: TẮT')
+        : (en ? 'INFO ON' : 'THÔNG TIN: BẬT');
+    }
+    ipToggleBtn.addEventListener('click', () => setInfoPanelHidden(!infoPanelHidden));
+    if (isTouchDevice && window.innerWidth <= 640) setInfoPanelHidden(true);
+
     /* The VOICE EN/VI toggle now drives the ENTIRE UI's language, not
        just the spoken narration — every static string + the panel
        content + the universe map labels all switch together, per
        feedback that EN should read as all-English and VI all-Vietnamese. */
-    const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     function applyUiLanguage() {
       const en = narratorLang === 'en';
       document.getElementById('hintText').textContent = isTouchDevice
@@ -3009,6 +3070,9 @@
       voiceBtn.textContent = voiceEnabled
         ? (en ? 'NARRATE ON' : 'THUYẾT MINH: BẬT')
         : (en ? 'NARRATE OFF' : 'THUYẾT MINH: TẮT');
+      ipToggleBtn.textContent = infoPanelHidden
+        ? (en ? 'INFO OFF' : 'THÔNG TIN: TẮT')
+        : (en ? 'INFO ON' : 'THÔNG TIN: BẬT');
       if (lastUpcoming >= 0) renderPanelContent(lastUpcoming);
       buildUniverseMap();
       detailLabelEl.textContent = stages()[floorWorld].title;
